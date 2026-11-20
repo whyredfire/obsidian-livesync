@@ -360,6 +360,15 @@ body.is-mobile .livesync-compatibility-review-notice {
     word-break: break-all;
 }
 
+.rs-settings-footer {
+    margin-top: var(--size-4-6);
+    padding-bottom: var(--size-4-2);
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    text-align: center;
+    user-select: text;
+}
+
 .rs-qr-card {
     display: flex;
     flex-direction: column;

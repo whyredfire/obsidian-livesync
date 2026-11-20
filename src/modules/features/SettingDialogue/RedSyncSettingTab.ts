@@ -122,6 +122,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
                         .setCta()
                         .onClick(() => this.runFlow(() => this.setupManager.startOnBoarding()))
                 );
+            this.addFooter(containerEl);
             return;
         }
 
@@ -322,5 +323,12 @@ export class RedSyncSettingTab extends PluginSettingTab {
                     void this.services.API.showWindow(VIEW_TYPE_LOG);
                 })
             );
+
+        this.addFooter(containerEl);
+    }
+
+    /** The installed version, read from the plug-in's manifest. */
+    private addFooter(containerEl: HTMLElement) {
+        containerEl.createDiv({ cls: "rs-settings-footer", text: `Red Sync ${this.plugin.manifest.version}` });
     }
 }
