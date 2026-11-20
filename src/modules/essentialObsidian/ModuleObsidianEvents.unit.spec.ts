@@ -78,7 +78,7 @@ function setup(opts: SetupOptions) {
     };
 }
 
-describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () => {
+describe("watchWindowVisibilityAsync", () => {
     it("checks the existing database before committing pending events on foreground return", async () => {
         const { module, databaseEvents, fileProcessing, appLifecycle } = setup({ hidden: false, isLastHidden: true });
         databaseEvents.onBeforeDatabaseResume.mockResolvedValue(false);
@@ -94,18 +94,9 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
         delete (globalThis as any).activeWindow;
     });
 
-    it("does NOT suspend on hide when enabled in LiveSync mode on the desktop app", async () => {
-        const { module, appLifecycle } = setup({
-            settings: { keepReplicationActiveInBackground: true, liveSync: true },
-            hidden: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        expect(appLifecycle.onSuspending).not.toHaveBeenCalled();
-    });
-
     it("suspends on hide by default (setting off)", async () => {
         const { module, appLifecycle } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: true },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         await module.watchWindowVisibilityAsync();
@@ -114,7 +105,7 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
 
     it("defers desktop suspension while bounded remote activity is running", async () => {
         const { module, appLifecycle, boundedRemoteActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: false },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         boundedRemoteActivityCount.value = 1;
@@ -126,7 +117,7 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
 
     it("suspends a hidden desktop window after the final bounded remote activity ends", async () => {
         const { module, appLifecycle, boundedRemoteActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: false },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         boundedRemoteActivityCount.value = 1;
@@ -139,7 +130,7 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
 
     it("defers suspension while local document application is active", async () => {
         const { module, appLifecycle, boundedLocalApplicationActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: false },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         boundedLocalApplicationActivityCount.value = 1;
@@ -154,7 +145,7 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
 
     it("defers mobile suspension while bounded remote activity is running", async () => {
         const { module, appLifecycle, boundedRemoteActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: false },
+            settings: { syncOnStart: true },
             hidden: true,
             isMobile: true,
         });
@@ -207,7 +198,7 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
 
     it("does not resume when the window becomes visible before deferred suspension runs", async () => {
         const { module, appLifecycle, boundedRemoteActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: false },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         boundedRemoteActivityCount.value = 1;
@@ -227,106 +218,9 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
         expect(appLifecycle.onResumed).not.toHaveBeenCalled();
     });
 
-    it("forces onSuspending before the resume on becoming visible when enabled (LiveSync teardown)", async () => {
-        const { module, appLifecycle } = setup({
-            settings: { keepReplicationActiveInBackground: true, liveSync: true },
-            hidden: false,
-            isLastHidden: true, // hidden -> visible transition
-        });
-        await module.watchWindowVisibilityAsync();
-        // Decision-logic only: on visible + enabled + LiveSync the handler calls onSuspending (the
-        // forced teardown) before onResuming. The actual stalled-channel replacement is exercised by
-        // the manual integration test, not here.
-        expect(appLifecycle.onSuspending).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onResuming).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onResumed).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onSuspending.mock.invocationCallOrder[0]).toBeLessThan(
-            appLifecycle.onResuming.mock.invocationCallOrder[0]
-        );
-    });
-
-    it("defers the LiveSync teardown on becoming visible until bounded remote activity ends", async () => {
-        const { module, appLifecycle, boundedRemoteActivityCount } = setup({
-            settings: { keepReplicationActiveInBackground: true, liveSync: true },
-            hidden: false,
-            isLastHidden: true,
-        });
-        boundedRemoteActivityCount.value = 1;
-
-        await module.watchWindowVisibilityAsync();
-
-        expect(appLifecycle.onSuspending).not.toHaveBeenCalled();
-        expect(appLifecycle.onResuming).not.toHaveBeenCalled();
-        expect(appLifecycle.onResumed).not.toHaveBeenCalled();
-
-        boundedRemoteActivityCount.value = 0;
-
-        await vi.waitFor(() => expect(appLifecycle.onResumed).toHaveBeenCalledTimes(1));
-        expect(appLifecycle.onSuspending).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onResuming).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onSuspending.mock.invocationCallOrder[0]).toBeLessThan(
-            appLifecycle.onResuming.mock.invocationCallOrder[0]
-        );
-    });
-
-    it("does not force a teardown on becoming visible by default (setting off)", async () => {
-        const { module, appLifecycle } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: true },
-            hidden: false,
-            isLastHidden: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        expect(appLifecycle.onSuspending).not.toHaveBeenCalled();
-        expect(appLifecycle.onResumed).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not apply in On-Events mode even if the flag is set (no scope leak)", async () => {
-        const { module, appLifecycle } = setup({
-            settings: {
-                keepReplicationActiveInBackground: true,
-                liveSync: false,
-                periodicReplication: false,
-            },
-            hidden: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        expect(appLifecycle.onSuspending).toHaveBeenCalledTimes(1);
-    });
-
-    it("does NOT suspend on hide when enabled in Periodic mode (the periodic timer also stalls otherwise)", async () => {
-        const { module, appLifecycle } = setup({
-            settings: {
-                keepReplicationActiveInBackground: true,
-                liveSync: false,
-                periodicReplication: true,
-            },
-            hidden: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        expect(appLifecycle.onSuspending).not.toHaveBeenCalled();
-    });
-
-    it("does NOT force a teardown on becoming visible in Periodic mode (only the continuous channel can stall)", async () => {
-        const { module, appLifecycle } = setup({
-            settings: {
-                keepReplicationActiveInBackground: true,
-                liveSync: false,
-                periodicReplication: true,
-            },
-            hidden: false,
-            isLastHidden: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        // The teardown is gated on liveSync: a periodic timer doesn't go half-open, so bouncing it
-        // on every restore would be needless churn. Resume still runs normally.
-        expect(appLifecycle.onSuspending).not.toHaveBeenCalled();
-        expect(appLifecycle.onResuming).toHaveBeenCalledTimes(1);
-        expect(appLifecycle.onResumed).toHaveBeenCalledTimes(1);
-    });
-
     it("logs a failed pending-file commit and still suspends on hide", async () => {
         const { module, appLifecycle, fileProcessing, api } = setup({
-            settings: { keepReplicationActiveInBackground: false, liveSync: true },
+            settings: { syncOnStart: true },
             hidden: true,
         });
         fileProcessing.commitPendingFileEvents.mockResolvedValue(false);
@@ -339,16 +233,6 @@ describe("watchWindowVisibilityAsync — keepReplicationActiveInBackground", () 
             LOG_LEVEL_NOTICE,
             expect.any(String)
         );
-    });
-
-    it("does not apply on mobile even if the flag is set", async () => {
-        const { module, appLifecycle } = setup({
-            settings: { keepReplicationActiveInBackground: true, liveSync: true },
-            hidden: true,
-            isMobile: true,
-        });
-        await module.watchWindowVisibilityAsync();
-        expect(appLifecycle.onSuspending).toHaveBeenCalledTimes(1);
     });
 });
 

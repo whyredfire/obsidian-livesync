@@ -3,12 +3,9 @@ import { EVENT_REQUEST_RUN_DOCTOR, EVENT_REQUEST_RUN_FIX_INCOMPLETE, EVENT_SETTI
 vi.mock("@/common/utils", () => ({
     isValidPath: () => true,
 }));
-import {
-    STARTUP_LIFECYCLE_LAYOUT_PRIORITY,
-    useStartupLifecycleFeature,
-    type StartupLifecycleFeatureOptions,
-    type StartupLifecycleHost,
-} from "./index";
+import { useStartupLifecycleFeature } from "./index";
+import { STARTUP_LIFECYCLE_LAYOUT_PRIORITY } from "./startupLifecycle";
+import type { StartupLifecycleFeatureOptions, StartupLifecycleHost } from "./types";
 
 function createHost() {
     const addLayoutHandler = vi.fn();

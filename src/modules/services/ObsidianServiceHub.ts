@@ -28,7 +28,6 @@ import { PouchDB } from "@vrtmrz/livesync-commonlib/compat/pouchdb/pouchdb-brows
 import { OpenKeyValueDatabase } from "@/common/KeyValueDB";
 import { ObsidianNoticeGroupManager } from "./ObsidianNoticeGroups";
 import { KeyedNoticeManager } from "@vrtmrz/obsidian-plugin-kit/notice";
-import { setLang } from "@/common/translation";
 
 // InjectableServiceHub
 
@@ -46,7 +45,6 @@ export class ObsidianServiceHub extends InjectableServiceHub<ObsidianServiceCont
 
         const setting = new ObsidianSettingService(context, {
             APIService: API,
-            onDisplayLanguageChanged: setLang,
             deviceValues: createWebStorageValueStore(compatGlobal.localStorage, { prefix: "" }),
         });
         const appLifecycle = new ObsidianAppLifecycleService(context, {

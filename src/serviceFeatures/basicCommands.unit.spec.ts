@@ -113,7 +113,6 @@ describe("useBasicCommandsFeature", () => {
         expect(fixture.commands.map(({ id }) => id)).toEqual([
             "livesync-replicate",
             "livesync-dump",
-            "livesync-toggle",
             "livesync-suspendall",
             "livesync-scan-files",
             "livesync-runbatch",
@@ -121,11 +120,10 @@ describe("useBasicCommandsFeature", () => {
         ]);
         expect(fixture.getCommand("livesync-replicate").name).toBe("Sync now");
         expect(fixture.getCommand("livesync-dump").name).toBe("Copy database information for the active file");
-        expect(fixture.getCommand("livesync-toggle").name).toBe("Toggle LiveSync");
-        expect(fixture.getCommand("livesync-suspendall").name).toBe("Toggle All Sync.");
+        expect(fixture.getCommand("livesync-suspendall").name).toBe("Pause or resume all synchronisation");
         expect(fixture.getCommand("livesync-scan-files").name).toBe("Scan storage and database again");
         expect(fixture.getCommand("livesync-runbatch").name).toBe("Apply pending changes now");
-        expect(fixture.getCommand("livesync-abortsync").name).toBe("Abort synchronization immediately");
+        expect(fixture.getCommand("livesync-abortsync").name).toBe("Abort synchronisation immediately");
     });
 
     it("retains the manual replication authority and quiet progress presentation", async () => {
@@ -141,26 +139,6 @@ describe("useBasicCommandsFeature", () => {
         });
     });
 
-    it("toggles LiveSync and persists the updated setting", async () => {
-        const fixture = createFixture();
-        await initialise(fixture);
-
-        await fixture.getCommand("livesync-toggle").callback?.();
-
-        expect(fixture.settings.liveSync).toBe(true);
-        expect(fixture.api.addLog).toHaveBeenCalledWith("LiveSync Enabled.", expect.anything(), "");
-        expect(fixture.services.control.applySettings).toHaveBeenCalledOnce();
-        expect(fixture.services.setting.saveSettingData).toHaveBeenCalledOnce();
-        expect(fixture.services.control.applySettings.mock.invocationCallOrder[0]).toBeLessThan(
-            fixture.services.setting.saveSettingData.mock.invocationCallOrder[0]
-        );
-
-        await fixture.getCommand("livesync-toggle").callback?.();
-
-        expect(fixture.settings.liveSync).toBe(false);
-        expect(fixture.api.addLog).toHaveBeenCalledWith("LiveSync Disabled.", expect.anything(), "");
-    });
-
     it("toggles all synchronisation through the app lifecycle and persists it", async () => {
         const fixture = createFixture();
         await initialise(fixture);
@@ -168,7 +146,7 @@ describe("useBasicCommandsFeature", () => {
         await fixture.getCommand("livesync-suspendall").callback?.();
 
         expect(fixture.services.appLifecycle.setSuspended).toHaveBeenCalledWith(true);
-        expect(fixture.api.addLog).toHaveBeenCalledWith("Self-hosted LiveSync suspended", expect.anything(), "");
+        expect(fixture.api.addLog).toHaveBeenCalledWith("Red Sync suspended", expect.anything(), "");
         expect(fixture.services.control.applySettings).toHaveBeenCalledOnce();
         expect(fixture.services.setting.saveSettingData).toHaveBeenCalledOnce();
         expect(fixture.services.control.applySettings.mock.invocationCallOrder[0]).toBeLessThan(
@@ -179,24 +157,15 @@ describe("useBasicCommandsFeature", () => {
         await fixture.getCommand("livesync-suspendall").callback?.();
 
         expect(fixture.services.appLifecycle.setSuspended).toHaveBeenLastCalledWith(false);
-        expect(fixture.api.addLog).toHaveBeenCalledWith("Self-hosted LiveSync resumed", expect.anything(), "");
+        expect(fixture.api.addLog).toHaveBeenCalledWith("Red Sync resumed", expect.anything(), "");
     });
 
-    it("keeps advanced maintenance checks gated and invokes their exact actions", async () => {
+    it("runs the maintenance commands without an advanced-mode gate", async () => {
         const fixture = createFixture();
         await initialise(fixture);
 
-        expect(fixture.getCommand("livesync-scan-files").checkCallback?.(true)).toBe(false);
-        expect(fixture.getCommand("livesync-abortsync").checkCallback?.(true)).toBe(false);
-
-        fixture.settings.useAdvancedMode = true;
-        expect(fixture.getCommand("livesync-scan-files").checkCallback?.(true)).toBe(true);
-        expect(fixture.getCommand("livesync-abortsync").checkCallback?.(true)).toBe(true);
-        expect(fixture.services.vault.scanVault).not.toHaveBeenCalled();
-        expect(fixture.services.replication.stopActiveTransfer).not.toHaveBeenCalled();
-
-        fixture.getCommand("livesync-scan-files").checkCallback?.(false);
-        fixture.getCommand("livesync-abortsync").checkCallback?.(false);
+        fixture.getCommand("livesync-scan-files").callback?.();
+        fixture.getCommand("livesync-abortsync").callback?.();
         await vi.waitFor(() => {
             expect(fixture.services.vault.scanVault).toHaveBeenCalledWith(true);
             expect(fixture.services.replication.stopActiveTransfer).toHaveBeenCalledOnce();
@@ -246,17 +215,6 @@ describe("useBasicCommandsFeature", () => {
         await vi.waitFor(() => expect(copyFileDatabaseInfo).toHaveBeenCalledOnce());
         expect(fixture.services.vault.getActiveFilePath).toHaveBeenCalledOnce();
         expect(vi.mocked(copyFileDatabaseInfo).mock.calls[0][1]).toBe("selected.md");
-
-        fixture.settings.useAdvancedMode = true;
-        for (const id of ["livesync-scan-files", "livesync-abortsync"]) {
-            expect(fixture.getCommand(id).checkCallback?.(true)).toBe(true);
-        }
-        fixture.settings.useAdvancedMode = false;
-        for (const id of ["livesync-scan-files", "livesync-abortsync"]) {
-            expect(fixture.getCommand(id).checkCallback?.(false)).toBe(false);
-        }
-        expect(fixture.services.vault.scanVault).not.toHaveBeenCalled();
-        expect(fixture.services.replication.stopActiveTransfer).not.toHaveBeenCalled();
     });
 
     it("propagates an availability failure without running the command", async () => {

@@ -760,7 +760,7 @@ export class ReplicateResultProcessor {
                 this.context.requestActiveReplicatorRetirement();
                 const rejection = pathIdentityDoesNotMatch
                     ? "Local and remote path identity settings do not match. Select the matching mode and Fetch the migrated database before synchronising."
-                    : `${describeRemoteFeatureRejection(assessment)} Update Self-hosted LiveSync before synchronising.`;
+                    : `${describeRemoteFeatureRejection(assessment)} Update Red Sync before synchronising.`;
                 this.log(rejection, LOG_LEVEL_NOTICE);
             }
             return true;

@@ -5,10 +5,7 @@ import type {
     JoinedDevicesSnapshot,
     ForgetJoinedDeviceResult,
 } from "@vrtmrz/livesync-commonlib/replication";
-import {
-    LiveSyncCouchDBReplicator,
-    type LiveSyncCouchDBReplicatorEnv,
-} from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
+import { type LiveSyncCouchDBReplicatorEnv } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
 import { LiveSyncJournalReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/journal/LiveSyncJournalReplicator";
 import { createReplicatorDisposer, snapshotRemoteSettings, type ResourceReplicator } from "./shared";
 
@@ -23,13 +20,6 @@ function createResource(replicator: JoinedDevicesReplicator, snapshot: RemoteDBS
         forget: (deviceId) => replicator.forgetJoinedDevice(snapshot, deviceId),
         dispose: createReplicatorDisposer(replicator),
     };
-}
-
-export function createCouchDBJoinedDevicesResourceFactory(
-    host: LiveSyncCouchDBReplicatorEnv
-): JoinedDevicesResourceFactory {
-    return (setting) =>
-        Promise.resolve(createResource(new LiveSyncCouchDBReplicator(host), snapshotRemoteSettings(setting)));
 }
 
 export function createObjectStorageJoinedDevicesResourceFactory(

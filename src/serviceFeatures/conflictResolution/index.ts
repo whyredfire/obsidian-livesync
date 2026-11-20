@@ -58,12 +58,3 @@ export const useConflictResolutionFeature = createServiceFeature((host: Conflict
         return Promise.resolve(true);
     });
 });
-
-export { createConflictCheckingHandlers } from "./checker";
-export type { ConflictCheckingDependencies, ConflictCheckingHandlers } from "./checker";
-export type {
-    ConflictResolutionOperations,
-    ConflictResolutionOperationsDependencies,
-    ConflictResolutionSettings,
-} from "./operations";
-export { createConflictResolutionOperations } from "./operations";

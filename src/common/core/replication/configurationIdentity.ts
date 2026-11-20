@@ -1,5 +1,4 @@
 import type { RemoteDBSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { usesEncryptedInternalMetadata } from "@vrtmrz/livesync-commonlib/replication";
 import { getPathNormalizationVersion } from "@vrtmrz/livesync-commonlib/settings";
 
 type EndpointProjection = readonly [kind: "url" | "invalid-url", value: string];
@@ -58,37 +57,6 @@ function projectRemoteSecurity(settings: RemoteDBSettings) {
               ] as const)
             : (["plain"] as const),
     ] as const;
-}
-
-/**
- * Project the effective CouchDB connection settings to a private comparison identity.
- * The returned value can contain credentials and must not be logged, persisted, or displayed.
- */
-export function getCouchDBReplicatorConfigurationIdentity(settings: RemoteDBSettings): string {
-    const authentication = settings.useJWT
-        ? ([
-              "jwt",
-              settings.jwtAlgorithm,
-              settings.jwtKey,
-              settings.jwtKid,
-              settings.jwtSub,
-              settings.jwtExpDuration,
-          ] as const)
-        : (["basic", settings.couchDB_USER, settings.couchDB_PASSWORD] as const);
-    return JSON.stringify([
-        "couchdb",
-        projectEndpoint(settings.couchDB_URI),
-        settings.couchDB_DBNAME,
-        authentication,
-        projectHeaders(settings.couchDB_CustomHeaders),
-        settings.useRequestAPI,
-        settings.useCouchDBCacheControlHeadersOnly === true,
-        settings.disableRequestURI,
-        projectRemoteSecurity(settings),
-        settings.encrypt === true && settings.acceptUnencryptedContent === true,
-        usesEncryptedInternalMetadata(settings),
-        settings.enableCompression,
-    ]);
 }
 
 /**

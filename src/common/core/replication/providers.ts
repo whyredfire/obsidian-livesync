@@ -1,13 +1,11 @@
-import { REMOTE_COUCHDB, REMOTE_MINIO, type RemoteDBSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { REMOTE_MINIO, type RemoteDBSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import {
     CAPABILITY_NOT_APPLICABLE,
-    CENTRAL_REMOTE_REPLICATION_READINESS,
     NO_INTERACTION,
     PROVIDER_OWNED_CENTRAL_REMOTE_REPLICATION_READINESS,
     REPLICATION_PROGRESS_PRESENTATIONS,
     REMOTE_RESOURCE_KINDS,
     defineReplicatorProviderDefinitions,
-    supportedOpenReplicationContinuous,
     replicationBlocked,
     replicationFailed,
     supportedStopActiveTransfer,
@@ -18,36 +16,21 @@ import {
     type UserInitiatedOneShotRunner,
     type UnattendedOneShotRunner,
 } from "@vrtmrz/livesync-commonlib/replication";
-import {
-    LiveSyncCouchDBReplicator,
-    type LiveSyncCouchDBReplicatorEnv,
-} from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
+import type { LiveSyncCouchDBReplicatorEnv } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
 import { LiveSyncJournalReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/journal/LiveSyncJournalReplicator";
+import { getObjectStorageReplicatorConfigurationIdentity } from "./configurationIdentity";
 import {
-    getCouchDBReplicatorConfigurationIdentity,
-    getObjectStorageReplicatorConfigurationIdentity,
-} from "./configurationIdentity";
-import {
-    createCouchDBJoinedDevicesResourceFactory,
     createObjectStorageJoinedDevicesResourceFactory,
-    createCouchDBConnectionProbeFactory,
-    createCouchDBInitialFetchFastForwardResourceFactory,
-    createCouchDBPreferredTweakProbeFactory,
-    createCouchDBSecuritySeedResourceFactory,
-    createCouchDBSynchronisationInformationResourceFactory,
     createObjectStorageConnectionProbeFactory,
     createObjectStoragePreferredTweakProbeFactory,
     createObjectStorageSecuritySeedResourceFactory,
 } from "./resources";
-import {
-    COUCHDB_CENTRAL_REMOTE_ADMINISTRATION_CAPABILITY,
-    OBJECT_STORAGE_CENTRAL_REMOTE_ADMINISTRATION_CAPABILITY,
-} from "./centralRemoteAdministration";
+import { OBJECT_STORAGE_CENTRAL_REMOTE_ADMINISTRATION_CAPABILITY } from "./centralRemoteAdministration";
 
-/** Host environment sufficient to construct every current central provider. */
+/** Host environment sufficient to construct the Object Storage provider. */
 export type CentralReplicatorProviderHost = LiveSyncCouchDBReplicatorEnv;
 
-/** Minimal operation required by both central one-shot adapters. */
+/** Minimal operation required by the central one-shot adapters. */
 interface OneShotOutcomeReplicator extends ReplicatorInstance {
     openOneShotReplicationWithOutcome(setting: RemoteDBSettings, showResult: boolean): Promise<ReplicationOutcome>;
 }
@@ -93,41 +76,7 @@ const unattendedOneShot: UnattendedOneShotRunner = async (instance, setting, req
 export function createCentralReplicatorProviderDefinitions(
     host: CentralReplicatorProviderHost
 ): ReplicatorProviderDefinitionMap {
-    return defineReplicatorProviderDefinitions([REMOTE_COUCHDB, REMOTE_MINIO] as const, {
-        [REMOTE_COUCHDB]: {
-            kind: REMOTE_COUCHDB,
-            diagnosticName: "CouchDB",
-            readiness: CENTRAL_REMOTE_REPLICATION_READINESS,
-            isConfigured: (settings) =>
-                settings.remoteType === REMOTE_COUCHDB &&
-                !!settings.couchDB_URI?.trim() &&
-                !!settings.couchDB_DBNAME?.trim(),
-            configurationIdentity: getCouchDBReplicatorConfigurationIdentity,
-            create: () => Promise.resolve(new LiveSyncCouchDBReplicator(host)),
-            remoteResources: {
-                [REMOTE_RESOURCE_KINDS.JOINED_DEVICES]: supportedCapability(
-                    createCouchDBJoinedDevicesResourceFactory(host)
-                ),
-                [REMOTE_RESOURCE_KINDS.CONNECTION]: supportedCapability(createCouchDBConnectionProbeFactory(host)),
-                [REMOTE_RESOURCE_KINDS.PREFERRED_TWEAK]: supportedCapability(
-                    createCouchDBPreferredTweakProbeFactory(host)
-                ),
-                [REMOTE_RESOURCE_KINDS.SECURITY_SEED]: supportedCapability(
-                    createCouchDBSecuritySeedResourceFactory(host)
-                ),
-                [REMOTE_RESOURCE_KINDS.SYNCHRONISATION_INFORMATION]: supportedCapability(
-                    createCouchDBSynchronisationInformationResourceFactory(host)
-                ),
-                [REMOTE_RESOURCE_KINDS.INITIAL_FETCH_FAST_FORWARD]: supportedCapability(
-                    createCouchDBInitialFetchFastForwardResourceFactory(host)
-                ),
-            },
-            centralRemoteAdministration: COUCHDB_CENTRAL_REMOTE_ADMINISTRATION_CAPABILITY,
-            userInitiatedOneShot: supportedCapability(userInitiatedOneShot),
-            unattendedOneShot: supportedCapability(unattendedOneShot),
-            continuous: supportedOpenReplicationContinuous(),
-            stopActiveTransfer: supportedStopActiveTransfer(),
-        },
+    return defineReplicatorProviderDefinitions([REMOTE_MINIO] as const, {
         [REMOTE_MINIO]: {
             kind: REMOTE_MINIO,
             diagnosticName: "Object Storage",

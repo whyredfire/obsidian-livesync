@@ -2,7 +2,6 @@ import type { DatabaseFileAccess } from "@vrtmrz/livesync-commonlib/compat/inter
 import type { Rebuilder } from "@vrtmrz/livesync-commonlib/compat/interfaces/DatabaseRebuilder";
 import type { IFileHandler } from "@vrtmrz/livesync-commonlib/compat/interfaces/FileHandler";
 import type { StorageAccess } from "@vrtmrz/livesync-commonlib/compat/interfaces/StorageAccess";
-import type { IServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/base/IService";
 
 export interface ServiceModules {
     storageAccess: StorageAccess;
@@ -19,9 +18,4 @@ export interface ServiceModules {
      * Rebuilder for handling database rebuilding operations.
      */
     rebuilder: Rebuilder;
-}
-
-export interface LiveSyncHost {
-    services: IServiceHub;
-    serviceModules: ServiceModules;
 }

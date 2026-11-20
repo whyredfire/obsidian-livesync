@@ -19,51 +19,27 @@
         getInitialData?: () => OutroApplyInitialData | undefined;
     };
     const { setResult, getInitialData }: Props = $props();
-    const isP2P = $derived(getInitialData?.()?.isP2P === true);
     const enableUnencryptedContent = $derived(getInitialData?.()?.enableUnencryptedContent === true);
 </script>
 
-{#if isP2P}
-    <DialogHeader title={translateMessage("Setup Complete: Preparing to Fetch from Another Device")} />
-    <Guidance>
-        <p>
-            {translateMessage(
-                "The P2P connection has been configured successfully. The initial synchronisation data must now be fetched from an online source device."
-            )}
-        </p>
-        <p>
-            <strong>{translateMessage("PLEASE NOTE")}</strong>
-            <br />
-            {translateMessage(
-                "After restarting, select an online source device for the initial Fetch. The local LiveSync database on this device will be rebuilt from that source. Unsynchronised files in this Vault may conflict with the fetched data."
-            )}
-        </p>
-    </Guidance>
-    <Instruction>
-        <Question>
-            {translateMessage("Restart this device, then choose the source device when P2P Rebuild opens.")}
-        </Question>
-    </Instruction>
-{:else}
-    <DialogHeader title={translateMessage("Setup Complete: Preparing to Fetch Synchronisation Data")} />
-    <Guidance>
-        <p>
-            {translateMessage("The connection to the server has been configured successfully. As the next step,")}
-            <strong
-                >{translateMessage(
-                    "the latest synchronisation data will be downloaded from the server to this device."
-                )}</strong
-            >
-        </p>
-        <p>
-            <strong>{translateMessage("PLEASE NOTE")}</strong>
-            <br />
-            {translateMessage(
-                "After restarting, the database on this device will be rebuilt using data from the server. If there are any unsynchronised files in this vault, conflicts may occur with the server data."
-            )}
-        </p>
-    </Guidance>
-{/if}
+<DialogHeader title={translateMessage("Setup Complete: Preparing to Fetch Synchronisation Data")} />
+<Guidance>
+    <p>
+        {translateMessage("The connection to the server has been configured successfully. As the next step,")}
+        <strong
+            >{translateMessage(
+                "the latest synchronisation data will be downloaded from the server to this device."
+            )}</strong
+        >
+    </p>
+    <p>
+        <strong>{translateMessage("PLEASE NOTE")}</strong>
+        <br />
+        {translateMessage(
+            "After restarting, the database on this device will be rebuilt using data from the server. If there are any unsynchronised files in this vault, conflicts may occur with the server data."
+        )}
+    </p>
+</Guidance>
 
 {#if enableUnencryptedContent}
     <PlaintextReceiptWarning />

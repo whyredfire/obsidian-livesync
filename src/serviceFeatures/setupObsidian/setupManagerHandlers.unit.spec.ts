@@ -1,11 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import {
-    EVENT_REQUEST_OPEN_P2P_SETTINGS,
-    EVENT_REQUEST_OPEN_SETUP_URI,
-} from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
+import { EVENT_REQUEST_OPEN_SETUP_URI } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
 import {
     openOnboarding,
-    openP2PSettings,
     openSetupURI,
     showOnboardingInvitation,
     useSetupManagerHandlersFeature,
@@ -33,23 +29,6 @@ describe("setupObsidian/setupManagerHandlers", () => {
 
         await openSetupURI(setupManager);
         expect(setupManager.onUseSetupURI).toHaveBeenCalledWith("unknown");
-    });
-
-    it("openP2PSettings should delegate to SetupManager.onP2PManualSetup", async () => {
-        const settings = { x: 1 };
-        const host = {
-            services: {
-                setting: {
-                    currentSettings: vi.fn(() => settings),
-                },
-            },
-        } as any;
-        const setupManager = {
-            onP2PManualSetup: vi.fn(async () => await Promise.resolve(true)),
-        } as any;
-
-        await openP2PSettings(host, setupManager);
-        expect(setupManager.onP2PManualSetup).toHaveBeenCalledWith("unknown", settings, false);
     });
 
     it("openOnboarding should delegate to SetupManager.startOnBoarding", async () => {
@@ -138,7 +117,6 @@ describe("setupObsidian/setupManagerHandlers", () => {
         const setupManager = {
             startOnBoarding: vi.fn(async () => await Promise.resolve(false)),
             onUseSetupURI: vi.fn(async () => await Promise.resolve(true)),
-            onP2PManualSetup: vi.fn(async () => await Promise.resolve(true)),
         } as any;
 
         useSetupManagerHandlersFeature(host, setupManager);
@@ -155,10 +133,9 @@ describe("setupObsidian/setupManagerHandlers", () => {
         expect(addCommand).toHaveBeenCalledWith(
             expect.objectContaining({
                 id: "livesync-opensetupuri",
-                name: "Use the copied setup URI (Formerly Open setup URI)",
+                name: "Use a setup URI",
             })
         );
         expect(events.onEvent).toHaveBeenCalledWith(EVENT_REQUEST_OPEN_SETUP_URI, expect.any(Function));
-        expect(events.onEvent).toHaveBeenCalledWith(EVENT_REQUEST_OPEN_P2P_SETTINGS, expect.any(Function));
     });
 });

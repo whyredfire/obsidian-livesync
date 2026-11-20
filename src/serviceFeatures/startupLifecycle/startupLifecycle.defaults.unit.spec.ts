@@ -20,7 +20,8 @@ vi.mock("./configDoctor", () => ({
     runConfigDoctor: operationMocks.runConfigDoctor,
 }));
 
-import { useStartupLifecycleFeature, type StartupLifecycleHost } from "./index";
+import { useStartupLifecycleFeature } from "./index";
+import type { StartupLifecycleHost } from "./types";
 
 describe("useStartupLifecycleFeature default operation wiring", () => {
     it("maps the host services to every configured start-up operation in order", async () => {

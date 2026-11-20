@@ -10,7 +10,6 @@ export default defineConfig(
         "coverage",
         "main.js",
         "main_org.js",
-        "pouchdb-browser.js",
         "package.json",
         "package-lock.json",
         "versions.json",
@@ -19,8 +18,6 @@ export default defineConfig(
         "**/svelte.config.js",
         "**/*.unit.spec.ts",
         "**/test/**",
-        "src/apps/_test/**",
-        "test/e2e-cli/**",
     ]),
     {
         languageOptions: {
@@ -29,18 +26,10 @@ export default defineConfig(
                 ...globals.node,
                 MANIFEST_VERSION: "readonly",
                 PACKAGE_VERSION: "readonly",
-                UPDATE_INFO: "readonly",
                 hostPlatform: "readonly",
             },
             parserOptions: {
-                project: [
-                    "./tsconfig.json",
-                    "./src/apps/browser/tsconfig.json",
-                    "./src/apps/cli/tsconfig.json",
-                    "./src/apps/webapp/tsconfig.json",
-                    "./src/apps/webpeer/tsconfig.app.json",
-                    "./src/apps/webpeer/tsconfig.node.json",
-                ],
+                project: ["./tsconfig.json"],
                 tsconfigRootDir: import.meta.dirname,
             },
         },
@@ -63,19 +52,6 @@ export default defineConfig(
             "@typescript-eslint/no-base-to-string": "warn",
             "@typescript-eslint/no-redundant-type-constituents": "warn",
             "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-        },
-    },
-    {
-        files: ["src/apps/**/*.{ts,js,mjs}"],
-        rules: {
-            // These applications are inspected by the directory review but accept external command and file data.
-            "@typescript-eslint/restrict-template-expressions": "warn",
-        },
-    },
-    {
-        files: ["src/apps/browser/**/*.ts", "src/apps/webapp/**/*.ts"],
-        rules: {
-            "obsidianmd/prefer-active-doc": "off",
         },
     }
 );

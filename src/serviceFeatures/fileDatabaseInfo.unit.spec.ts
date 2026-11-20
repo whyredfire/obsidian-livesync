@@ -1,13 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LiveSyncLocalDB } from "@vrtmrz/livesync-commonlib/compat/pouchdb/LiveSyncLocalDB";
-import {
-    buildFileDatabaseInfoReport,
-    chooseAndCopyFileDatabaseInfo,
-    collectFileDatabaseInfoPaths,
-    inspectFileDatabaseInfo,
-    readFileDatabaseRevisionLocally,
-    retryReadFileDatabaseRevision,
-} from "./fileDatabaseInfo";
+import { buildFileDatabaseInfoReport, inspectFileDatabaseInfo } from "./fileDatabaseInfo";
 
 async function* documents(paths: string[]) {
     for (const path of paths) {
@@ -325,91 +318,6 @@ describe("file database information", () => {
         expect(core.services.path.path2id).not.toHaveBeenCalled();
     });
 
-    it("does not decode a revision whose chunks are not all available locally", async () => {
-        const { core } = createCore();
-
-        await expect(readFileDatabaseRevisionLocally(core as never, "note.md", "3-current")).resolves.toBe(false);
-
-        expect(core.localDatabase.getDBEntryFromMeta).not.toHaveBeenCalled();
-    });
-
-    it("decodes an exact revision after confirming that every chunk is available locally", async () => {
-        const { core, current } = createCore();
-        core.localDatabase.localDatabase.get.mockResolvedValue({
-            ...current,
-            children: ["h:available"],
-            eden: {},
-        } as never);
-        core.localDatabase.allDocsRaw.mockResolvedValue({
-            rows: [
-                {
-                    id: "h:available",
-                    key: "h:available",
-                    value: { rev: "1-available" },
-                },
-            ],
-        });
-
-        await expect(readFileDatabaseRevisionLocally(core as never, "note.md", "3-current")).resolves.toEqual(
-            expect.objectContaining({
-                data: ["loaded body"],
-            })
-        );
-
-        expect(core.localDatabase.getDBEntryFromMeta).toHaveBeenCalledWith(
-            expect.objectContaining({
-                _rev: "3-current",
-            }),
-            false,
-            false
-        );
-    });
-
-    it("retries an exact revision through the configured chunk retrieval path", async () => {
-        const { core } = createCore();
-
-        await retryReadFileDatabaseRevision(core as never, "note.md", "2-conflict");
-
-        expect(core.localDatabase.getDBEntry).toHaveBeenCalledWith("note.md", { rev: "2-conflict" }, false, true, true);
-    });
-
-    it("reports the exact revision as locally available after retry recovers its missing chunk", async () => {
-        const { conflict, core } = createCore();
-        let recovered = false;
-        core.localDatabase.getDBEntry.mockImplementation(async () => {
-            recovered = true;
-            return conflict as never;
-        });
-        core.localDatabase.allDocsRaw.mockImplementation(async ({ keys }: { keys: string[] }) => ({
-            rows:
-                recovered && keys.includes("h:private-missing")
-                    ? [
-                          {
-                              id: "h:private-missing",
-                              key: "h:private-missing",
-                              value: { rev: "1-recovered" },
-                          },
-                      ]
-                    : [],
-        }));
-
-        await expect(retryReadFileDatabaseRevision(core as never, "note.md", "2-conflict")).resolves.not.toBe(false);
-        const information = await inspectFileDatabaseInfo(core as never, "note.md");
-
-        expect(information.database.revisions.find(({ revision }) => revision === "2-conflict")).toEqual(
-            expect.objectContaining({
-                contentAvailableLocally: true,
-                chunks: [
-                    expect.objectContaining({
-                        id: "h:private-missing",
-                        localDatabaseState: "available",
-                        localDatabaseRevision: "1-recovered",
-                    }),
-                ],
-            })
-        );
-    });
-
     it("keeps the exact revision identifiers when conflict metadata is unavailable", async () => {
         const { conflict, core, current } = createCore();
         core.localDatabase.localDatabase.get.mockImplementation(async (_id: string, options?: { rev?: string }) => {
@@ -451,30 +359,5 @@ describe("file database information", () => {
         expect(report).toContain('"exists": true');
         expect(report).toContain('"documentId": "f:ignored"');
         expect(report).toContain('"revision": "5-ignored"');
-    });
-
-    it("offers the union of storage and database paths and excludes inactive internal namespaces", async () => {
-        const { core } = createCore();
-
-        await expect(collectFileDatabaseInfoPaths(core as never)).resolves.toEqual(["a.md", "db-only.md", "z.md"]);
-
-        core.settings.syncInternalFiles = true;
-        await expect(collectFileDatabaseInfoPaths(core as never)).resolves.toEqual([
-            ".obsidian/app.json",
-            "a.md",
-            "db-only.md",
-        ]);
-    });
-
-    it("copies the selected file report through the existing copy dialogue", async () => {
-        const { askSelectString, core, promptCopyToClipboard } = createCore();
-
-        await expect(chooseAndCopyFileDatabaseInfo(core as never)).resolves.toBe(true);
-
-        expect(askSelectString).toHaveBeenCalledWith("Choose a file to inspect", ["a.md", "db-only.md", "z.md"]);
-        expect(promptCopyToClipboard).toHaveBeenCalledWith(
-            "Database information for db-only.md",
-            expect.stringContaining('"path": "db-only.md"')
-        );
     });
 });

@@ -12,7 +12,9 @@ declare module "obsidian" {
 // InjectableVaultService
 export class ObsidianVaultService extends InjectableVaultService<ObsidianServiceContext> {
     override vaultName(): string {
-        return this.context.app.vault.getName();
+        // Suffixed so that the local databases never collide with Self-hosted LiveSync
+        // installed in the same vault.
+        return `${this.context.app.vault.getName()}-redsync`;
     }
     getActiveFilePath(): FilePath | undefined {
         const file = this.context.app.workspace.getActiveFile();

@@ -24,8 +24,8 @@ import {
     type LogFunction,
 } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
 import type { ConflictResolutionHost } from "./index";
-import { createConflictResolutionOperations, useConflictResolutionFeature } from "./index";
-import type { ConflictResolutionOperationsDependencies } from "./operations";
+import { useConflictResolutionFeature } from "./index";
+import { createConflictResolutionOperations, type ConflictResolutionOperationsDependencies } from "./operations";
 
 type ConflictLeaf = {
     rev: string;

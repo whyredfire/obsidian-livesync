@@ -16,7 +16,6 @@ const keepTest = true; //!prod;
 
 const manifestJson = JSON.parse(fs.readFileSync("./manifest.json") + "");
 const packageJson = JSON.parse(fs.readFileSync("./package.json") + "");
-const updateInfo = JSON.stringify(fs.readFileSync("./updates.md") + "");
 
 const PATHS_TEST_INSTALL = process.env?.PATHS_TEST_INSTALL || "";
 const PATH_TEST_INSTALL = PATHS_TEST_INSTALL.split(path.delimiter)
@@ -29,46 +28,6 @@ if (PATH_TEST_INSTALL) {
         "Development build: You can install the plug-in to Obsidian for testing by exporting the PATHS_TEST_INSTALL environment variable with the paths to your vault plugins directories separated by your system path delimiter (':' on Unix, ';' on Windows)."
     );
 }
-
-const moduleAliasPlugin = {
-    name: "module-alias",
-    setup(build) {
-        build.onResolve({ filter: /.(dev)(.ts|)$/ }, (args) => {
-            // console.log(args.path);
-            if (prod) {
-                let prodTs = args.path.replace(".dev", ".prod");
-                const statFile = prodTs.endsWith(".ts") ? prodTs : prodTs + ".ts";
-                const realPath = path.join(args.resolveDir, statFile);
-                console.log(`Checking ${statFile}`);
-                if (fs.existsSync(realPath)) {
-                    console.log(`Replaced ${args.path} with ${prodTs}`);
-                    return {
-                        path: realPath,
-                        namespace: "file",
-                    };
-                }
-            }
-            return null;
-        });
-        build.onResolve({ filter: /.(platform)(.ts|)$/ }, (args) => {
-            // console.log(args.path);
-            if (prod) {
-                let prodTs = args.path.replace(".platform", ".obsidian");
-                const statFile = prodTs.endsWith(".ts") ? prodTs : prodTs + ".ts";
-                const realPath = path.join(args.resolveDir, statFile);
-                console.log(`Checking ${statFile}`);
-                if (fs.existsSync(realPath)) {
-                    console.log(`Replaced ${args.path} with ${prodTs}`);
-                    return {
-                        path: realPath,
-                        namespace: "file",
-                    };
-                }
-            }
-            return null;
-        });
-    },
-};
 
 const removePragmaCommentsPlugin = {
     name: "remove-pragma-comments",
@@ -183,7 +142,6 @@ const context = await esbuild.context({
     define: {
         MANIFEST_VERSION: `"${manifestJson.version}"`,
         PACKAGE_VERSION: `"${packageJson.version}"`,
-        UPDATE_INFO: `${updateInfo}`,
         global: "window",
     },
     external: externals,
@@ -204,7 +162,6 @@ const context = await esbuild.context({
     dropLabels: prod && !keepTest ? ["TEST", "DEV"] : [],
     // keepNames: true,
     plugins: [
-        moduleAliasPlugin,
         inlineWorkerPlugin({
             external: externals,
             treeShaking: true,

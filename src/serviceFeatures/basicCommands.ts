@@ -79,32 +79,15 @@ export function useBasicCommandsFeature(host: BasicCommandsHost): void {
         });
 
         services.API.addCommand({
-            id: "livesync-toggle",
-            name: "Toggle LiveSync",
-            callback: async () => {
-                const settings = services.setting.currentSettings();
-                if (settings.liveSync) {
-                    settings.liveSync = false;
-                    log("LiveSync Disabled.", LOG_LEVEL_NOTICE);
-                } else {
-                    settings.liveSync = true;
-                    log("LiveSync Enabled.", LOG_LEVEL_NOTICE);
-                }
-                await services.control.applySettings();
-                await services.setting.saveSettingData();
-            },
-        });
-
-        services.API.addCommand({
             id: "livesync-suspendall",
-            name: "Toggle All Sync.",
+            name: "Pause or resume all synchronisation",
             callback: async () => {
                 if (services.appLifecycle.isSuspended()) {
                     services.appLifecycle.setSuspended(false);
-                    log("Self-hosted LiveSync resumed", LOG_LEVEL_NOTICE);
+                    log("Red Sync resumed", LOG_LEVEL_NOTICE);
                 } else {
                     services.appLifecycle.setSuspended(true);
-                    log("Self-hosted LiveSync suspended", LOG_LEVEL_NOTICE);
+                    log("Red Sync suspended", LOG_LEVEL_NOTICE);
                 }
                 await services.control.applySettings();
                 await services.setting.saveSettingData();
@@ -114,12 +97,9 @@ export function useBasicCommandsFeature(host: BasicCommandsHost): void {
         services.API.addCommand({
             id: "livesync-scan-files",
             name: "Scan storage and database again",
-            checkCallback: createCommandCheck(
-                () => services.setting.currentSettings().useAdvancedMode,
-                () => {
-                    fireAndForget(() => services.vault.scanVault(true));
-                }
-            ),
+            callback: () => {
+                fireAndForget(() => services.vault.scanVault(true));
+            },
         });
 
         services.API.addCommand({
@@ -132,13 +112,10 @@ export function useBasicCommandsFeature(host: BasicCommandsHost): void {
 
         services.API.addCommand({
             id: "livesync-abortsync",
-            name: "Abort synchronization immediately",
-            checkCallback: createCommandCheck(
-                () => services.setting.currentSettings().useAdvancedMode,
-                () => {
-                    fireAndForget(() => services.replication.stopActiveTransfer());
-                }
-            ),
+            name: "Abort synchronisation immediately",
+            callback: () => {
+                fireAndForget(() => services.replication.stopActiveTransfer());
+            },
         });
 
         return Promise.resolve(true);

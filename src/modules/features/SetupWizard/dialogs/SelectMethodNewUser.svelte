@@ -52,9 +52,6 @@
             bind:value={userType}
         >
             {translateMessage("Ui.SetupWizard.SelectNew.ManualOptionDesc")}
-            {translateMessage(
-                "P2P requires no central data-storage server, but it still uses a signalling relay for peer discovery."
-            )}
         </Option>
     </Options>
 </Instruction>

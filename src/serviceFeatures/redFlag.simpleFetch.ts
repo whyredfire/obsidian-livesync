@@ -12,7 +12,7 @@ import {
 } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
 import { adjustSettingToRemoteIfNeeded, cancelScheduledInitialisation, processVaultInitialisation } from "./redFlag";
 import { $msg } from "@/common/translation";
-import type { AllMessageKeys } from "@/common/rosetta";
+import type { AllMessageKeys } from "@/common/translation";
 import { readFetchSelection, saveFetchSelection, clearFetchSelection, describeFetchRemote } from "./redFlag.fetchState";
 
 export const SIMPLE_FETCH_STAGE1_REMOTE_WINS = "Overwrite all with remote files";
@@ -129,9 +129,9 @@ export async function askSimpleFetchMode(
 Firstly, how shall we handle the data retrieved from this remote source?
 
 - **\${NEWER_WINS}**: Compares the modified time of files and takes the newer one.
-  If you have been using Self-hosted LiveSync and have made changes on multiple devices, this option may be suitable for you as it tries to merge changes based on modified time.
+  If you have been using Red Sync and have made changes on multiple devices, this option may be suitable for you as it tries to merge changes based on modified time.
 - **\${REMOTE_WINS}**: Remote data is the source of truth.
-  If you are new to using Self-hosted LiveSync. This option may be easiest to understand and get started with.
+  If you are new to using Red Sync. This option may be easiest to understand and get started with.
   It will overwrite all your local files with the remote data, so please make sure you have a backup if there is any important data in your vault.
 - **\${DETAILED}**: Opens the detailed setup wizard.
   If you want to have more control over the synchronisation process, or want to review the changes before applying, you can choose this option to use the detailed flow.`,

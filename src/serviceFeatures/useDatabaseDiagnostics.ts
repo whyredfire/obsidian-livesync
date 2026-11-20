@@ -45,10 +45,10 @@ export const useDatabaseDiagnosticsFeature = createServiceFeature((host: Databas
     services.appLifecycle.onInitialise.addHandler(() => {
         services.API.addCommand({
             id: "analyse-database",
-            name: "Analyse Database Usage (advanced)",
+            name: "Analyse database usage",
             icon: "database-search",
             checkCallback: createCommandCheck(
-                () => services.setting.currentSettings().useAdvancedMode && services.database.isDatabaseReady(),
+                () => services.database.isDatabaseReady(),
                 () => {
                     void open("usage");
                 }

@@ -9,7 +9,6 @@
     import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
     import { $msg as msg } from "@/common/translation";
     import {
-        type ApplySettingsInitialisationInitialData,
         type ApplySettingsInitialisationResultType,
         TYPE_CANCELLED,
         TYPE_FETCH,
@@ -18,22 +17,16 @@
 
     type Props = {
         setResult: (result: ApplySettingsInitialisationResultType) => void;
-        getInitialData?: () => ApplySettingsInitialisationInitialData | undefined;
     };
-    const { setResult, getInitialData }: Props = $props();
-    const isP2P = $derived(getInitialData?.()?.isP2P === true);
+    const { setResult }: Props = $props();
     let selectedMode = $state<ApplySettingsInitialisationResultType>(TYPE_CANCELLED);
     const canProceed = $derived(selectedMode === TYPE_FETCH || selectedMode === TYPE_REBUILD);
     const proceedMessage = $derived.by(() => {
         if (selectedMode === TYPE_FETCH) {
-            return isP2P
-                ? msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedFetchP2P")
-                : msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedFetch");
+            return msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedFetch");
         }
         if (selectedMode === TYPE_REBUILD) {
-            return isP2P
-                ? msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedRebuildP2P")
-                : msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedRebuild");
+            return msg("Ui.SetupWizard.ApplySettingsInitialisation.ProceedRebuild");
         }
         return msg("Ui.SetupWizard.Common.ProceedSelectOption");
     });
@@ -51,30 +44,24 @@
         selectedValue={TYPE_FETCH}
     >
         <InfoNote notice>
-            {isP2P
-                ? msg("Ui.SetupWizard.ApplySettingsInitialisation.FetchOptionP2PDesc")
-                : msg("Ui.SetupWizard.ApplySettingsInitialisation.FetchOptionDesc")}
+            {msg("Ui.SetupWizard.ApplySettingsInitialisation.FetchOptionDesc")}
         </InfoNote>
     </Option>
     <Option
-        title={isP2P
-            ? msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOptionP2P")
-            : msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOption")}
+        title={msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOption")}
         bind:value={selectedMode}
         selectedValue={TYPE_REBUILD}
     >
-        <InfoNote warning={!isP2P} notice={isP2P}>
-            {isP2P
-                ? msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOptionP2PDesc")
-                : msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOptionDesc")}
+        <InfoNote warning>
+            {msg("Ui.SetupWizard.ApplySettingsInitialisation.RebuildOptionDesc")}
         </InfoNote>
     </Option>
 </Instruction>
 <UserDecisions>
     <Decision
         title={proceedMessage}
-        important={selectedMode !== TYPE_REBUILD || isP2P}
-        destructive={selectedMode === TYPE_REBUILD && !isP2P}
+        important={selectedMode !== TYPE_REBUILD}
+        destructive={selectedMode === TYPE_REBUILD}
         disabled={!canProceed}
         commit={() => setResult(selectedMode)}
     />

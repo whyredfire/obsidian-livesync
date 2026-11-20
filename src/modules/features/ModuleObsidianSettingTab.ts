@@ -1,29 +1,24 @@
-import { ObsidianLiveSyncSettingTab } from "./SettingDialogue/ObsidianLiveSyncSettingTab.ts";
+import { RedSyncSettingTab } from "./SettingDialogue/RedSyncSettingTab.ts";
 import { AbstractObsidianModule } from "@/modules/AbstractObsidianModule.ts";
-// import { PouchDB } from "../../lib/src/pouchdb/pouchdb-browser";
-import { EVENT_REQUEST_OPEN_SETTINGS, eventHub } from "@/common/events.ts";
+import { EVENT_REQUEST_OPEN_SETTINGS, EVENT_REQUEST_RELOAD_SETTING_TAB, eventHub } from "@/common/events.ts";
 import type { LiveSyncCore } from "@/main.ts";
 import { openObsidianSettings } from "@/modules/coreObsidian/UI/obsidianSettings.ts";
 
 export class ModuleObsidianSettingDialogue extends AbstractObsidianModule {
-    settingTab!: ObsidianLiveSyncSettingTab;
+    settingTab!: RedSyncSettingTab;
 
-    async _everyOnloadAfterLoadSettings(): Promise<boolean> {
-        this.settingTab = new ObsidianLiveSyncSettingTab(this.app, this.plugin);
-        await this.settingTab.loadSettings();
+    _everyOnloadAfterLoadSettings(): Promise<boolean> {
+        this.settingTab = new RedSyncSettingTab(this.app, this.plugin);
         this.plugin.addSettingTab(this.settingTab);
         eventHub.onEvent(EVENT_REQUEST_OPEN_SETTINGS, () => this.openSetting());
-
-        return true;
+        eventHub.onEvent(EVENT_REQUEST_RELOAD_SETTING_TAB, () => this.settingTab.refresh());
+        return Promise.resolve(true);
     }
 
     openSetting() {
-        openObsidianSettings(this.app, "obsidian-livesync");
+        openObsidianSettings(this.app, this.plugin.manifest.id);
     }
 
-    get appId() {
-        return `${"appId" in this.app ? this.app.appId : ""}`;
-    }
     override onBindFunction(core: LiveSyncCore, services: typeof core.services): void {
         services.appLifecycle.onSettingLoaded.addHandler(this._everyOnloadAfterLoadSettings.bind(this));
     }

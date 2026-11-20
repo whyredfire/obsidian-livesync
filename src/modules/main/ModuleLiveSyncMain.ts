@@ -11,7 +11,7 @@ import {
     EVENT_SETTING_SAVED,
     eventHub,
 } from "@/common/events.ts";
-import { $msg, setLang } from "@/common/translation";
+import { $msg } from "@/common/translation";
 import { AbstractModule } from "@/modules/AbstractModule.ts";
 import type { InjectableServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/implements/injectable/InjectableServiceHub";
 import type { LiveSyncCore } from "@/main.ts";
@@ -121,10 +121,6 @@ export class ModuleLiveSyncMain extends AbstractModule {
         eventHub.onEvent(EVENT_SETTING_SAVED, (settings: ObsidianLiveSyncSettings) => {
             fireAndForget(async () => {
                 try {
-                    const lang = this.core.services.setting.currentSettings()?.displayLanguage;
-                    if (lang !== undefined) {
-                        setLang(lang);
-                    }
                     if (this.core.services.database.isDatabaseReady()) {
                         await this.core.services.control.applySettings();
                     }

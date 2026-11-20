@@ -4,17 +4,10 @@ import globals from "globals";
 import { defineConfig, globalIgnores } from "eslint/config";
 import * as sveltePlugin from "eslint-plugin-svelte";
 import svelteParser from "svelte-eslint-parser";
-import importAlias from "./utils/import-alias.mjs";
+import importAlias from "./scripts/eslint-import-alias.mjs";
 import { baseRules, ImportAliasRules, obsidianRules } from "./eslint.config.common.mjs";
 const warnWhileDev = "off"; // Change to "warn" to enable warnings for rules that are currently disabled.
-const lintProjects = [
-    "./tsconfig.json",
-    "./src/apps/browser/tsconfig.json",
-    "./src/apps/cli/tsconfig.json",
-    "./src/apps/webapp/tsconfig.json",
-    "./src/apps/webpeer/tsconfig.app.json",
-    "./src/apps/webpeer/tsconfig.node.json",
-];
+const lintProjects = ["./tsconfig.json"];
 export default defineConfig([
     globalIgnores([
         // Build outputs and legacy files
@@ -23,16 +16,11 @@ export default defineConfig([
         "coverage",
         "**/main.js",
         "main_org.js",
-        "pouchdb-browser.js",
         "version-bump.mjs",
         "package.json",
         "**/*.json",
-        "**/.eslintrc.js.bak",
-        // Files from linked dependencies (those files should not exist for most people).
-        "modules/octagonal-wheels/dist",
-
-        // Sub-project tooling with its own environment
-        "utils",
+        // Build and maintenance scripts
+        "scripts",
 
         // Config files and build scripts
         "**/jest.config.js",
@@ -47,8 +35,6 @@ export default defineConfig([
         // Testing files (Simplified patterns)
         "test/**",
         "**/test/**",
-        "src/apps/_test/**",
-        "test/e2e-cli/**",
         "**/*.test.ts",
         "**/*.unit.spec.ts",
         "**/test.ts",
@@ -100,39 +86,6 @@ export default defineConfig([
             ...obsidianRules,
             "obsidianmd/no-plugin-as-component": "off",
             ...ImportAliasRules("."),
-        },
-    },
-    {
-        files: ["src/integrations/**/*.ts"],
-        rules: {
-            // External-service integrations also run in Node and do not own window UI.
-            "obsidianmd/no-global-this": "off",
-        },
-    },
-    {
-        files: ["src/apps/**/*.ts"],
-        rules: {
-            // Platform adapters implement asynchronous contracts even when a local operation is synchronous.
-            "@typescript-eslint/require-await": "off",
-            // Keep existing application code visible without making gradual type tightening a release blocker.
-            "@typescript-eslint/no-base-to-string": "warn",
-            "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-            "@typescript-eslint/restrict-template-expressions": "warn",
-        },
-    },
-    {
-        files: ["src/apps/cli/vite.config.ts", "src/apps/webapp/vite.config.ts"],
-        rules: {
-            // Vite loads these configurations before the application source alias is available.
-            "livesync-imports/prefer-source-alias": "off",
-        },
-    },
-    {
-        files: ["src/apps/browser/**/*.{ts,svelte}", "src/apps/webapp/**/*.ts"],
-        rules: {
-            // Browser applications use the DOM rather than Obsidian's DOM extensions.
-            "obsidianmd/prefer-create-el": "off",
-            "obsidianmd/prefer-active-doc": "off",
         },
     },
 ]);

@@ -1,5 +1,5 @@
 import { ButtonComponent } from "@/deps.ts";
-import { App, FuzzySuggestModal, MarkdownRenderer, Modal, Plugin, Setting, Component } from "@/deps.ts";
+import { App, MarkdownRenderer, Modal, Plugin, Setting, Component } from "@/deps.ts";
 import { EVENT_PLUGIN_UNLOADED, eventHub } from "@/common/events.ts";
 import { compatGlobal, type CompatIntervalHandle } from "@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions";
 import { $msg } from "@/common/translation";
@@ -16,118 +16,6 @@ class AutoClosableModal extends Modal {
     }
     override onClose() {
         eventHub.off(EVENT_PLUGIN_UNLOADED, this._closeByUnload);
-    }
-}
-
-export class InputStringDialog extends AutoClosableModal {
-    result: string | false = false;
-    onSubmit: (result: string | false) => void;
-    title: string;
-    key: string;
-    placeholder: string;
-    isManuallyClosed = false;
-    isPassword = false;
-
-    constructor(
-        app: App,
-        title: string,
-        key: string,
-        placeholder: string,
-        isPassword: boolean,
-        onSubmit: (result: string | false) => void
-    ) {
-        super(app);
-        this.onSubmit = onSubmit;
-        this.title = title;
-        this.placeholder = placeholder;
-        this.key = key;
-        this.isPassword = isPassword;
-    }
-
-    override onOpen() {
-        const { contentEl } = this;
-        this.titleEl.setText(this.title);
-        const formEl = contentEl.createDiv();
-        new Setting(formEl)
-            .setName(this.key)
-            .setClass(this.isPassword ? "password-input" : "normal-input")
-            .addText((text) =>
-                text.onChange((value) => {
-                    this.result = value;
-                })
-            );
-        new Setting(formEl)
-            .addButton((btn) =>
-                btn
-                    .setButtonText($msg("Ok"))
-                    .setCta()
-                    .onClick(() => {
-                        this.isManuallyClosed = true;
-                        this.close();
-                    })
-            )
-            .addButton((btn) =>
-                btn
-                    .setButtonText($msg("Cancel"))
-                    .setCta()
-                    .onClick(() => {
-                        this.close();
-                    })
-            );
-    }
-
-    override onClose() {
-        super.onClose();
-        const { contentEl } = this;
-        contentEl.empty();
-        if (this.isManuallyClosed) {
-            this.onSubmit(this.result);
-        } else {
-            this.onSubmit(false);
-        }
-    }
-}
-export class PopoverSelectString extends FuzzySuggestModal<string> {
-    _app: App;
-    callback: ((e: string) => void) | undefined = () => {};
-    getItemsFun: () => string[] = () => {
-        return ["yes", "no"];
-    };
-
-    constructor(
-        app: App,
-        note: string,
-        placeholder: string | undefined,
-        getItemsFun: (() => string[]) | undefined,
-        callback: (e: string) => void
-    ) {
-        super(app);
-        this._app = app;
-        this.setPlaceholder((placeholder ?? "y/n) ") + note);
-        if (getItemsFun) this.getItemsFun = getItemsFun;
-        this.callback = callback;
-    }
-
-    getItems(): string[] {
-        return this.getItemsFun();
-    }
-
-    getItemText(item: string): string {
-        return item;
-    }
-
-    onChooseItem(item: string, evt: MouseEvent | KeyboardEvent): void {
-        // debugger;
-        this.callback?.(item);
-        this.callback = undefined;
-    }
-    override onClose(): void {
-        compatGlobal.setTimeout(() => {
-            if (this.callback) {
-                this.callback("");
-                this.callback = undefined;
-            }
-        }, 100);
     }
 }
 
@@ -259,22 +147,6 @@ export class MessageBox<T extends readonly string[]> extends AutoClosableModal {
         }
     }
 }
-
-export function confirmWithMessage<T extends readonly string[]>(
-    plugin: Plugin,
-    title: string,
-    contentMd: string,
-    buttons: T,
-    defaultAction: T[number],
-    timeout?: number
-): Promise<T[number] | false> {
-    return new Promise((res) => {
-        const dialog = new MessageBox(plugin, title, contentMd, buttons, defaultAction, timeout, false, (result) =>
-            res(result)
-        );
-        dialog.open();
-    });
-}
 export function confirmWithMessageWithWideButton<T extends readonly string[]>(
     plugin: Plugin,
     title: string,
@@ -290,33 +162,3 @@ export function confirmWithMessageWithWideButton<T extends readonly string[]>(
         dialog.open();
     });
 }
-
-export const askYesNo = (app: App, message: string): Promise<"yes" | "no"> => {
-    return new Promise((res) => {
-        const popover = new PopoverSelectString(app, message, undefined, undefined, (result) =>
-            res(result as "yes" | "no")
-        );
-        popover.open();
-    });
-};
-
-export const askSelectString = (app: App, message: string, items: string[]): Promise<string> => {
-    const getItemsFun = () => items;
-    return new Promise((res) => {
-        const popover = new PopoverSelectString(app, message, "", getItemsFun, (result) => res(result));
-        popover.open();
-    });
-};
-
-export const askString = (
-    app: App,
-    title: string,
-    key: string,
-    placeholder: string,
-    isPassword: boolean = false
-): Promise<string | false> => {
-    return new Promise((res) => {
-        const dialog = new InputStringDialog(app, title, key, placeholder, isPassword, (result) => res(result));
-        dialog.open();
-    });
-};

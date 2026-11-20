@@ -22,10 +22,8 @@
 
     type Props = {
         setResult: (result: RebuildEverythingResult) => void;
-        getInitialData?: () => { isP2P?: boolean } | undefined;
     };
-    const { setResult, getInitialData }: Props = $props();
-    const isP2P = $derived(getInitialData?.()?.isP2P === true);
+    const { setResult }: Props = $props();
 
     let backupType = $state<ResultTypeBackup>(TYPE_CANCEL);
     let confirmationCheck1 = $state(false);
@@ -33,7 +31,6 @@
     let confirmationCheck3 = $state(false);
     const canProceed = $derived.by(() => {
         const backupConfirmed = backupType === TYPE_BACKUP_DONE || backupType === TYPE_BACKUP_SKIPPED;
-        if (isP2P) return backupConfirmed && confirmationCheck1;
         return backupConfirmed && confirmationCheck1 && confirmationCheck2 && confirmationCheck3;
     });
     let preventFetchingConfig = $state(false);
@@ -48,49 +45,38 @@
     }
 </script>
 
-{#if isP2P}
-    <DialogHeader title={msg("Ui.SetupWizard.RebuildEverythingP2P.Title")} />
-    <Guidance>{msg("Ui.SetupWizard.RebuildEverythingP2P.Guidance")}</Guidance>
-    <InfoNote>{msg("Ui.SetupWizard.RebuildEverythingP2P.Note")}</InfoNote>
-    <Guidance important title={msg("Ui.SetupWizard.RebuildEverythingP2P.ConfirmTitle")}>
-        <Check title={msg("Ui.SetupWizard.RebuildEverythingP2P.ConfirmLocalReset")} bind:value={confirmationCheck1}>
-            <InfoNote>{msg("Ui.SetupWizard.RebuildEverythingP2P.ConfirmLocalResetNote")}</InfoNote>
-        </Check>
-    </Guidance>
-{:else}
-    <DialogHeader title={msg("Final Confirmation: Overwrite Server Data with This Device's Files")} />
-    <Guidance
-        >{msg(
-            "This procedure will first delete all existing synchronisation data from the server. Following this, the server data will be completely rebuilt, using the current state of your Vault on this device (including its local database) as"
-        )} <strong>{msg("the single, authoritative master copy")}</strong>.</Guidance
+<DialogHeader title={msg("Final Confirmation: Overwrite Server Data with This Device's Files")} />
+<Guidance
+    >{msg(
+        "This procedure will first delete all existing synchronisation data from the server. Following this, the server data will be completely rebuilt, using the current state of your Vault on this device (including its local database) as"
+    )} <strong>{msg("the single, authoritative master copy")}</strong>.</Guidance
+>
+<InfoNote>
+    {msg(
+        "You should perform this operation only in exceptional circumstances, such as when the server data is completely corrupted, when changes on all other devices are no longer needed, or when the database size has become unusually large in comparison to the Vault size."
+    )}
+</InfoNote>
+<Guidance important title={msg("⚠️ Please Confirm the Following")}>
+    <Check
+        title={msg("I understand that all changes made on other smartphones or computers possibly could be lost.")}
+        bind:value={confirmationCheck1}
     >
-    <InfoNote>
-        {msg(
-            "You should perform this operation only in exceptional circumstances, such as when the server data is completely corrupted, when changes on all other devices are no longer needed, or when the database size has become unusually large in comparison to the Vault size."
+        <InfoNote>{msg("There is a way to resolve this on other devices.")}</InfoNote>
+        <InfoNote>{msg("Of course, we can back up the data before proceeding.")}</InfoNote>
+    </Check>
+    <Check
+        title={msg(
+            "I understand that other devices will no longer be able to synchronise, and will need to be reset the synchronisation information."
         )}
-    </InfoNote>
-    <Guidance important title={msg("⚠️ Please Confirm the Following")}>
-        <Check
-            title={msg("I understand that all changes made on other smartphones or computers possibly could be lost.")}
-            bind:value={confirmationCheck1}
-        >
-            <InfoNote>{msg("There is a way to resolve this on other devices.")}</InfoNote>
-            <InfoNote>{msg("Of course, we can back up the data before proceeding.")}</InfoNote>
-        </Check>
-        <Check
-            title={msg(
-                "I understand that other devices will no longer be able to synchronise, and will need to be reset the synchronisation information."
-            )}
-            bind:value={confirmationCheck2}
-        >
-            <InfoNote>{msg("by resetting the remote, you will be informed on other devices.")}</InfoNote>
-        </Check>
-        <Check
-            title={msg("I understand that this action is irreversible once performed.")}
-            bind:value={confirmationCheck3}
-        />
-    </Guidance>
-{/if}
+        bind:value={confirmationCheck2}
+    >
+        <InfoNote>{msg("by resetting the remote, you will be informed on other devices.")}</InfoNote>
+    </Check>
+    <Check
+        title={msg("I understand that this action is irreversible once performed.")}
+        bind:value={confirmationCheck3}
+    />
+</Guidance>
 <hr />
 <Instruction>
     <Question>{msg("Have you created a backup before proceeding?")}</Question>
@@ -126,20 +112,16 @@
         </Option>
     </Options>
 </Instruction>
-{#if !isP2P}
-    <Instruction>
-        <ExtraItems title={msg("Advanced")}>
-            <Check title={msg("Use this device's settings")} bind:value={preventFetchingConfig}>
-                <InfoNote>{msg("Skips checking and applying synchronisation settings from the remote.")}</InfoNote>
-            </Check>
-        </ExtraItems>
-    </Instruction>
-{/if}
+<Instruction>
+    <ExtraItems title={msg("Advanced")}>
+        <Check title={msg("Use this device's settings")} bind:value={preventFetchingConfig}>
+            <InfoNote>{msg("Skips checking and applying synchronisation settings from the remote.")}</InfoNote>
+        </Check>
+    </ExtraItems>
+</Instruction>
 <UserDecisions>
     <Decision
-        title={isP2P
-            ? msg("Ui.SetupWizard.RebuildEverythingP2P.Proceed")
-            : msg("I Understand, Overwrite Server")}
+        title={msg("I Understand, Overwrite Server")}
         important
         disabled={!canProceed}
         commit={() => commit()}

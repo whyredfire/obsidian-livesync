@@ -1,12 +1,8 @@
 import type {
     BucketSyncSetting,
-    CouchDBConnection,
     EncryptionSettings,
     ObsidianLiveSyncSettings,
-    P2PConnectionInfo,
-    P2PSyncSetting,
 } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.type";
-import type { P2PConnectionProbeAdmission } from "@vrtmrz/livesync-commonlib/p2p";
 
 export const TYPE_IDENTICAL = "identical";
 export const TYPE_INDEPENDENT = "independent";
@@ -41,11 +37,6 @@ export const TYPE_CONFIGURE_MANUALLY = "configure-manually";
 
 // ScanQRCode
 export const TYPE_CLOSE = "close";
-
-// SetupRemote
-export const TYPE_COUCHDB = "couchdb";
-export const TYPE_BUCKET = "bucket";
-export const TYPE_P2P = "p2p";
 
 export type ResultTypeVault =
     | typeof TYPE_IDENTICAL
@@ -86,17 +77,12 @@ export type OutroAskUserModeResultType =
 
 export type OutroExistingUserResultType = typeof TYPE_APPLY | typeof TYPE_CANCELLED;
 export type OutroApplyInitialData = {
-    isP2P: boolean;
     enableUnencryptedContent: boolean;
 };
 
 export type OutroNewUserResultType = typeof TYPE_APPLY | typeof TYPE_CANCELLED;
 
 export type ApplySettingsInitialisationResultType = typeof TYPE_FETCH | typeof TYPE_REBUILD | typeof TYPE_CANCELLED;
-
-export type ApplySettingsInitialisationInitialData = {
-    isP2P: boolean;
-};
 
 export type SelectMethodNewUserResultType =
     | typeof TYPE_USE_SETUP_URI
@@ -109,8 +95,6 @@ export type SelectMethodExistingResultType =
     | typeof TYPE_CONFIGURE_MANUALLY
     | typeof TYPE_CANCELLED;
 
-export type SetupRemoteResultType = typeof TYPE_COUCHDB | typeof TYPE_BUCKET | typeof TYPE_P2P | typeof TYPE_CANCELLED;
-
 export type UseSetupURIResultType = typeof TYPE_CANCELLED | ObsidianLiveSyncSettings;
 
 export type SetupRemoteE2EEResultType = typeof TYPE_CANCELLED | EncryptionSettings;
@@ -120,18 +104,5 @@ export type SetupRemoteE2EEInitialData = {
 };
 
 export type SetupRemoteBucketResultType = typeof TYPE_CANCELLED | BucketSyncSetting;
-
-export type SetupRemoteCouchDBResultType = typeof TYPE_CANCELLED | CouchDBConnection;
-export type CouchDBSetupMode = "create-or-connect" | "connect-existing" | "settings";
-export type SetupRemoteCouchDBInitialData = {
-    settings: CouchDBConnection;
-    mode: CouchDBSetupMode;
-};
-
-export type SetupRemoteP2PResultType = typeof TYPE_CANCELLED | P2PConnectionInfo;
-export type SetupRemoteP2PInitialData = {
-    settings: P2PSyncSetting;
-    connectionProbe: P2PConnectionProbeAdmission;
-};
 
 export type ScanQRCodeResultType = typeof TYPE_CLOSE;

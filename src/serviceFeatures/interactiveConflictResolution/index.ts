@@ -79,10 +79,4 @@ export function useInteractiveConflictResolutionFeature(
     });
 }
 
-export { createInteractiveConflictResolutionOperations } from "./operations";
-export type {
-    InteractiveConflictResolutionOperations,
-    InteractiveConflictResolutionOperationsDependencies,
-} from "./operations";
-export { POSTPONED } from "./types";
-export type { ConflictResolveDialogue, ConflictResolveDialogueFactory, MergeDialogResult } from "./types";
+export type { ConflictResolveDialogueFactory } from "./types";

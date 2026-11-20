@@ -103,10 +103,6 @@ export async function copySetupURI(host: SetupFeatureHost, log: LogFunction, str
     await generateAndCopySetupURI(host, log, stripExtra ? ["pluginSyncExtendedSetting"] : [], true);
 }
 
-export async function copySetupURIFull(host: SetupFeatureHost, log: LogFunction) {
-    await generateAndCopySetupURI(host, log, [], false);
-}
-
 export function useSetupURIFeature(host: NecessaryServices<"API" | "UI" | "setting" | "appLifecycle", never>) {
     const log = createInstanceLogFunction("SF:SetupURI", host.services.API);
     host.services.appLifecycle.onLoaded.addHandler(() => {
@@ -117,34 +113,6 @@ export function useSetupURIFeature(host: NecessaryServices<"API" | "UI" | "setti
                 () => host.services.setting.currentSettings().isConfigured,
                 () => {
                     fireAndForget(copySetupURI(host, log));
-                }
-            ),
-        });
-
-        host.services.API.addCommand({
-            id: "livesync-copysetupuri-short",
-            name: "Copy settings as a new setup URI (With customization sync)",
-            checkCallback: createCommandCheck(
-                () => {
-                    const settings = host.services.setting.currentSettings();
-                    return settings.isConfigured && settings.usePluginSync;
-                },
-                () => {
-                    fireAndForget(copySetupURI(host, log, false));
-                }
-            ),
-        });
-
-        host.services.API.addCommand({
-            id: "livesync-copysetupurifull",
-            name: "Copy settings as a new setup URI (Full)",
-            checkCallback: createCommandCheck(
-                () => {
-                    const settings = host.services.setting.currentSettings();
-                    return settings.isConfigured && settings.useAdvancedMode;
-                },
-                () => {
-                    fireAndForget(copySetupURIFull(host, log));
                 }
             ),
         });

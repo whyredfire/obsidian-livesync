@@ -1,21 +1,14 @@
 import { useReflectionRecoveryReview } from "./serviceFeatures/replication/reflectionRecoveryReview";
-import { useP2PSettingsPreparation } from "@/serviceFeatures/useP2PSettingsPreparation";
 import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import { getLanguage, Notice, Plugin, type App, type PluginManifest } from "./deps";
 import { setGetLanguage } from "@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions";
 setGetLanguage(getLanguage);
 import { LiveSyncCommands } from "./features/LiveSyncCommands.ts";
-import { HiddenFileSync } from "./features/HiddenFileSync/CmdHiddenFileSync.ts";
-import { ConfigSync } from "./features/ConfigSync/CmdConfigSync.ts";
-// import { ModuleDev } from "./modules/extras/ModuleDev.ts";
 
 import { ModuleLog } from "./modules/features/ModuleLog.ts";
 import { withOwnedResource } from "octagonal-wheels/resource";
 import { ModuleObsidianEvents } from "./modules/essentialObsidian/ModuleObsidianEvents.ts";
 import { ModuleObsidianSettingDialogue } from "./modules/features/ModuleObsidianSettingTab.ts";
-import { ModuleObsidianDocumentHistory } from "./modules/features/ModuleObsidianDocumentHistory.ts";
-import { ModuleObsidianGlobalHistory } from "./modules/features/ModuleGlobalHistory.ts";
-import { LocalDatabaseMaintenance } from "./features/LocalDatabaseMainte/CmdLocalDatabaseMainte.ts";
 import type { InjectableServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/implements/injectable/InjectableServiceHub";
 import { ObsidianServiceHub } from "./modules/services/ObsidianServiceHub.ts";
 import { ObsidianRebuilder } from "@/serviceModules/ObsidianRebuilder.ts";
@@ -29,9 +22,7 @@ import type { ServiceModules } from "./types.ts";
 import { setNoticeClass } from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/wrapper";
 import type { ObsidianServiceContext } from "@/modules/services/ObsidianServiceContext";
 import { LiveSyncBaseCore } from "./LiveSyncBaseCore.ts";
-import { ModuleObsidianSettingsAsMarkdown } from "./modules/features/ModuleObsidianSettingAsMarkdown.ts";
 import { SetupManager } from "./modules/features/SetupManager.ts";
-import { enableI18nFeature } from "./serviceFeatures/onLayoutReady/enablei18n.ts";
 import { useOfflineScanner } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
 import { useRemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/remoteConfig";
 import { useCheckRemoteSize } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/checkRemoteSize";
@@ -43,20 +34,13 @@ import {
     showOnboardingInvitation,
     useSetupManagerHandlersFeature,
 } from "./serviceFeatures/setupObsidian/setupManagerHandlers.ts";
-import { useP2PReplicatorCommands, useP2PReplicatorFeature } from "@vrtmrz/livesync-commonlib/p2p";
-import { useP2PReplicatorUI } from "./serviceFeatures/useP2PReplicatorUI.ts";
-import { useReviewHarness } from "./serviceFeatures/useReviewHarness.ts";
-import { createOpenReplicationUI, createOpenRebuildUI } from "./features/P2PSync/P2PReplicator/P2PReplicationUI.ts";
 import { useCompatibilityReview } from "./serviceFeatures/compatibilityReview.ts";
 import { createObsidianCompatibilityReviewUi } from "./serviceFeatures/compatibilityReviewObsidian.ts";
 import { createFileReflectionProvenance } from "./serviceModules/FileReflectionProvenance.ts";
 import { useInteractiveConflictResolutionFeature } from "./serviceFeatures/interactiveConflictResolution";
 import { ConflictResolveModal } from "./modules/features/InteractiveConflictResolving/ConflictResolveModal.ts";
 import { useObsidianReplicationRibbonFeature } from "./serviceFeatures/obsidianReplicationRibbon.ts";
-import { useSyncGuardFeature } from "./serviceFeatures/syncGuard";
-import { SyncGuardOverlay } from "./serviceFeatures/syncGuard/SyncGuardOverlay";
 import { useStartupLifecycleFeature } from "./serviceFeatures/startupLifecycle";
-import { useJoinedDevicesFeature } from "./serviceFeatures/useJoinedDevices";
 import { useDatabaseDiagnosticsFeature } from "./serviceFeatures/useDatabaseDiagnostics";
 import { useDatabaseConnectionRecovery } from "./serviceFeatures/databaseConnectionRecovery";
 export type LiveSyncCore = LiveSyncBaseCore<ObsidianServiceContext, LiveSyncCommands>;
@@ -174,44 +158,20 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                 const extraModules = [
                     new ModuleObsidianEvents(this, core),
                     new ModuleObsidianSettingDialogue(this, core),
-                    new ModuleObsidianSettingsAsMarkdown(core),
                     new ModuleLog(this, core),
-                    new ModuleObsidianDocumentHistory(this, core),
-                    new ModuleObsidianGlobalHistory(this, core),
-                    // new ModuleDev(this, core),
                     new SetupManager(core), // this should be moved to core?
                 ];
                 return extraModules;
             },
             (core) => {
-                const addOns = [new ConfigSync(core), new HiddenFileSync(core), new LocalDatabaseMaintenance(core)];
-                return addOns;
+                return [];
             },
             (core, coreFeatureViews) => {
                 useReflectionRecoveryReview(core, coreFeatureViews.reflectionRecovery, serviceHub.context.noticeGroups);
                 //TODO Fix: useXXXX
-                const featuresInitialiser = enableI18nFeature;
-                const curriedFeature = () => featuresInitialiser(core);
-                core.services.appLifecycle.onLayoutReady.addHandler(curriedFeature);
                 const setupManager = core.getModule(SetupManager);
-                const createInteractiveP2PReplication = createOpenReplicationUI(this.app);
-                const replicator = useP2PReplicatorFeature(
-                    core,
-                    (_compatibilityReplicator, p2p) => createInteractiveP2PReplication(p2p),
-                    createOpenRebuildUI(this.app),
-                    {
-                        prepareP2PSettings: useP2PSettingsPreparation(
-                            core.services.API.webCompatFetch.bind(core.services.API)
-                        ),
-                    }
-                );
-                setupManager.registerP2PSetupConnectionProbe(replicator.connectionProbe);
-                useP2PReplicatorCommands(core, replicator);
-                useP2PReplicatorUI(core, core, replicator, createInteractiveP2PReplication(replicator));
                 useObsidianReplicationRibbonFeature(core);
-                useSyncGuardFeature(core, (onBypass) => new SyncGuardOverlay(this.app.workspace.containerEl, onBypass));
                 useDatabaseDiagnosticsFeature(core);
-                useJoinedDevicesFeature(core, serviceHub.context.noticeGroups);
                 useRemoteConfiguration(core);
 
                 useSetupProtocolFeature(core, setupManager);
@@ -232,7 +192,6 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                     inviteToOnboarding: () => showOnboardingInvitation(core, setupManager),
                     waitForCompatibilityReview: () => compatibilityReview.openReview(),
                 });
-                useReviewHarness(core, this, compatibilityReview);
             },
             { recoverFileReflectionFailures: true }
         );
@@ -250,7 +209,7 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
         void withOwnedResource(this.core.getModule(ModuleLog).logResource, () =>
             this.core.services.control.onUnload().catch((error) => {
                 this.core.services.API.addLog(
-                    "Failed to unload Self-hosted LiveSync: " + String(error),
+                    "Failed to unload Red Sync: " + String(error),
                     LOG_LEVEL_URGENT,
                     "shutdown"
                 );

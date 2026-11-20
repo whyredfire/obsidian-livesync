@@ -5,16 +5,10 @@ import { bindableFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib
 
 const unusedStartupDependencies: readonly [string, readonly string[]][] = [
     ["./serviceFeatures/replication/reflectionRecoveryReview", ["useReflectionRecoveryReview"]],
-    ["@/serviceFeatures/useP2PSettingsPreparation", ["useP2PSettingsPreparation"]],
     ["./features/LiveSyncCommands.ts", ["LiveSyncCommands"]],
-    ["./features/HiddenFileSync/CmdHiddenFileSync.ts", ["HiddenFileSync"]],
-    ["./features/ConfigSync/CmdConfigSync.ts", ["ConfigSync"]],
     ["./modules/features/ModuleLog.ts", ["ModuleLog"]],
     ["./modules/essentialObsidian/ModuleObsidianEvents.ts", ["ModuleObsidianEvents"]],
     ["./modules/features/ModuleObsidianSettingTab.ts", ["ModuleObsidianSettingDialogue"]],
-    ["./modules/features/ModuleObsidianDocumentHistory.ts", ["ModuleObsidianDocumentHistory"]],
-    ["./modules/features/ModuleGlobalHistory.ts", ["ModuleObsidianGlobalHistory"]],
-    ["./features/LocalDatabaseMainte/CmdLocalDatabaseMainte.ts", ["LocalDatabaseMaintenance"]],
     ["./modules/services/ObsidianServiceHub.ts", ["ObsidianServiceHub"]],
     ["@vrtmrz/livesync-commonlib/compat/serviceModules/Rebuilder", ["ServiceRebuilder"]],
     ["@/serviceModules/DatabaseFileAccess.ts", ["ServiceDatabaseFileAccess"]],
@@ -25,9 +19,7 @@ const unusedStartupDependencies: readonly [string, readonly string[]][] = [
     ["./managers/StorageEventManagerObsidian.ts", ["StorageEventManagerObsidian"]],
     ["@vrtmrz/livesync-commonlib/compat/mock_and_interop/wrapper", ["setNoticeClass"]],
     ["./LiveSyncBaseCore.ts", ["LiveSyncBaseCore"]],
-    ["./modules/features/ModuleObsidianSettingAsMarkdown.ts", ["ModuleObsidianSettingsAsMarkdown"]],
     ["./modules/features/SetupManager.ts", ["SetupManager"]],
-    ["./serviceFeatures/onLayoutReady/enablei18n.ts", ["enableI18nFeature"]],
     ["@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner", ["useOfflineScanner"]],
     ["@vrtmrz/livesync-commonlib/compat/serviceFeatures/remoteConfig", ["useRemoteConfiguration"]],
     ["@vrtmrz/livesync-commonlib/compat/serviceFeatures/checkRemoteSize", ["useCheckRemoteSize"]],
@@ -39,21 +31,14 @@ const unusedStartupDependencies: readonly [string, readonly string[]][] = [
         "./serviceFeatures/setupObsidian/setupManagerHandlers.ts",
         ["showOnboardingInvitation", "useSetupManagerHandlersFeature"],
     ],
-    ["@vrtmrz/livesync-commonlib/p2p", ["useP2PReplicatorCommands", "useP2PReplicatorFeature"]],
-    ["./serviceFeatures/useP2PReplicatorUI.ts", ["useP2PReplicatorUI"]],
-    ["./serviceFeatures/useReviewHarness.ts", ["useReviewHarness"]],
     ["./serviceFeatures/databaseConnectionRecovery.ts", ["useDatabaseConnectionRecovery"]],
-    ["./features/P2PSync/P2PReplicator/P2PReplicationUI.ts", ["createOpenReplicationUI", "createOpenRebuildUI"]],
     ["./serviceFeatures/compatibilityReview.ts", ["useCompatibilityReview"]],
     ["./serviceFeatures/compatibilityReviewObsidian.ts", ["createObsidianCompatibilityReviewUi"]],
     ["./serviceModules/FileReflectionProvenance.ts", ["createFileReflectionProvenance"]],
     ["./serviceFeatures/interactiveConflictResolution", ["useInteractiveConflictResolutionFeature"]],
     ["./modules/features/InteractiveConflictResolving/ConflictResolveModal.ts", ["ConflictResolveModal"]],
     ["./serviceFeatures/obsidianReplicationRibbon.ts", ["useObsidianReplicationRibbonFeature"]],
-    ["./serviceFeatures/syncGuard", ["useSyncGuardFeature"]],
-    ["./serviceFeatures/syncGuard/SyncGuardOverlay", ["SyncGuardOverlay"]],
     ["./serviceFeatures/startupLifecycle", ["useStartupLifecycleFeature"]],
-    ["./serviceFeatures/useJoinedDevices", ["useJoinedDevicesFeature"]],
     ["./serviceFeatures/useDatabaseDiagnostics", ["useDatabaseDiagnosticsFeature"]],
 ];
 
@@ -111,7 +96,7 @@ describe("Obsidian plug-in unload logging", () => {
             await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(1));
 
             if (outcome === "fail") {
-                const message = "Failed to unload Self-hosted LiveSync: " + String(failure);
+                const message = "Failed to unload Red Sync: " + String(failure);
                 expect(sink).toHaveBeenCalledWith(message, LOG_LEVEL_URGENT, "shutdown");
                 expect(events).toEqual(["during shutdown", message, "disposed"]);
             } else {

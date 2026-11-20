@@ -1,11 +1,6 @@
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/settings";
 import {
-    REMOTE_COUCHDB,
-    REMOTE_MINIO,
-    REMOTE_P2P,
-} from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
-import {
     FlagFilesHumanReadable,
     FlagFilesOriginal,
 } from "@vrtmrz/livesync-commonlib/compat/common/models/redflag.const";
@@ -28,31 +23,16 @@ function endpointDescription(value: string): string {
 
 /** Describe the current destination for confirmation, without connection credentials. */
 export function describeFetchRemote(settings: ObsidianLiveSyncSettings): string {
-    switch (settings.remoteType) {
-        case REMOTE_COUCHDB:
-            return ["CouchDB", endpointDescription(settings.couchDB_URI), settings.couchDB_DBNAME].join(" / ");
-        case REMOTE_MINIO:
-            return [
-                "Object Storage",
-                endpointDescription(settings.endpoint),
-                settings.region,
-                settings.bucket,
-                settings.bucketPrefix,
-            ]
-                .filter(Boolean)
-                .join(" / ");
-        case REMOTE_P2P:
-            return [
-                "P2P",
-                settings.P2P_AppID,
-                settings.P2P_roomID,
-                ...settings.P2P_relays.split(",").map((relay) => endpointDescription(relay.trim())),
-            ]
-                .filter(Boolean)
-                .join(" / ");
-        default:
-            throw new Error("The selected remote type cannot use Fast Setup.");
-    }
+    // Red Sync always uses Object Storage; the remote type is enforced when settings load.
+    return [
+        "Object Storage",
+        endpointDescription(settings.endpoint),
+        settings.region,
+        settings.bucket,
+        settings.bucketPrefix,
+    ]
+        .filter(Boolean)
+        .join(" / ");
 }
 
 async function readFetchFlag(host: FetchStateHost) {

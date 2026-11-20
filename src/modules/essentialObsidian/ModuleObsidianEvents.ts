@@ -120,7 +120,7 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
     hasFocus = true;
     isLastHidden = false;
     private boundedActivityEndHandler?: (value: { readonly value: number }) => unknown;
-    private deferredBoundedLifecycle?: "suspend-if-hidden" | "restart-continuous-if-visible";
+    private deferredBoundedLifecycle?: "suspend-if-hidden";
 
     private get boundedActivityCounts(): ReactiveSource<number>[] {
         const replicator = this.services.replicator as typeof this.services.replicator & {
@@ -133,14 +133,6 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
         return this.boundedActivityCounts.some((count) => count.value > 0);
     }
 
-    private keepReplicationActiveInBackground() {
-        return (
-            this.settings.keepReplicationActiveInBackground &&
-            (this.settings.liveSync || this.settings.periodicReplication) &&
-            !this.services.API.isMobile()
-        );
-    }
-
     private async applyDeferredBoundedActivityLifecycle() {
         if (this.hasBoundedActivity()) {
             this.deferLifecycleUntilBoundedActivityEnds();
@@ -148,20 +140,8 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
         }
         const deferredLifecycle = this.deferredBoundedLifecycle;
         this.deferredBoundedLifecycle = undefined;
-        const keepActiveInBackground = this.keepReplicationActiveInBackground();
         if (deferredLifecycle === "suspend-if-hidden" && !this.services.context.isHostActive()) {
-            if (!keepActiveInBackground) await this.services.appLifecycle.onSuspending();
-            return;
-        }
-        if (
-            deferredLifecycle === "restart-continuous-if-visible" &&
-            this.services.context.isHostActive() &&
-            keepActiveInBackground &&
-            this.settings.liveSync
-        ) {
             await this.services.appLifecycle.onSuspending();
-            await this.services.appLifecycle.onResuming();
-            await this.services.appLifecycle.onResumed();
         }
     }
 
@@ -242,45 +222,15 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
             );
         }
 
-        // Desktop opt-in (LiveSync/Periodic only): keep the background channel running while the
-        // window is hidden, instead of suspending on hide. On hide we skip the suspend for both
-        // modes (LiveSync's continuous replication and Periodic's timer both stall otherwise);
-        // becoming visible reopens normally, and for LiveSync additionally forces a teardown first
-        // (see the resume branch) so a stalled continuous channel is always replaced.
-        const keepActiveInBackground = this.keepReplicationActiveInBackground();
-
         if (isHidden) {
-            if (boundedActivityInProgress && !keepActiveInBackground) {
+            if (boundedActivityInProgress) {
                 this.deferredBoundedLifecycle = "suspend-if-hidden";
                 this.deferLifecycleUntilBoundedActivityEnds();
-            } else if (!keepActiveInBackground) {
+            } else {
                 await this.services.appLifecycle.onSuspending();
             }
         } else {
-            // suspend all temporary.
             if (this.services.appLifecycle.isSuspended()) return;
-            if (boundedActivityInProgress && keepActiveInBackground && this.settings.liveSync) {
-                this.deferredBoundedLifecycle = "restart-continuous-if-visible";
-                this.deferLifecycleUntilBoundedActivityEnds();
-                return;
-            }
-            // Only the continuous (LiveSync) channel can go stalled-but-not-terminated: PouchDB
-            // emits paused/retry while the replicator keeps its AbortController set, so the reopen
-            // below would no-op on exactly the channel that needs replacing. Force a teardown first
-            // so becoming visible always re-establishes a fresh channel (restoring the default's
-            // reset-on-visibility). Periodic mode has no such channel — its timer just resumes via
-            // the normal path below — so this teardown is gated on liveSync to avoid needlessly
-            // bouncing it. The teardown's closeReplication() aborts synchronously while the reopen is
-            // deferred (fireAndForget + awaited isReplicationReady/initializeDatabaseForReplication),
-            // so the aborted continuousReplication run (and its shareRunningResult lock) unwinds in
-            // microtasks before the reopen runs: it neither double-opens nor gets swallowed by the
-            // still-registered shared run.
-            if (keepActiveInBackground && this.settings.liveSync) {
-                await this.services.appLifecycle.onSuspending();
-            }
-            // Resume is not gated on focus in this branch, but note the top-of-handler check
-            // (isLastHidden && !hasFocus) still defers the whole handler when the window becomes
-            // visible again while unfocused; in that case recovery happens on the next focus.
             await this.services.appLifecycle.onResuming();
             await this.services.appLifecycle.onResumed();
         }

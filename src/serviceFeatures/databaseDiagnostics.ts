@@ -1,7 +1,6 @@
 import {
     analyseDatabaseIntegrity,
     analyseDatabaseUsage,
-    createCouchDBDiagnosticSource,
     createDiagnosticNameMapper,
     createLocalDiagnosticSource,
     formatDiagnosticJSON,
@@ -13,7 +12,7 @@ import {
     type DiagnosticNameMode,
     type DiagnosticStatus,
 } from "@vrtmrz/livesync-commonlib/diagnostics";
-import { REMOTE_COUCHDB, type ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import type { StorageAccess } from "@vrtmrz/livesync-commonlib/compat/interfaces/StorageAccess";
 import type { NecessaryServicesInterfaces } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import type { LiveSyncLocalDB } from "@vrtmrz/livesync-commonlib/compat/pouchdb/LiveSyncLocalDB";
@@ -161,37 +160,9 @@ export async function runDatabaseDiagnostic(
     const includeRemote = options.includeRemote !== false;
     const integrityOptions: Parameters<typeof analyseDatabaseIntegrity>[0] = {
         local,
-        remote:
-            includeRemote && settings.remoteType === REMOTE_COUCHDB
-                ? () =>
-                      Promise.resolve(
-                          createCouchDBDiagnosticSource({
-                              settings,
-                              signal: options.signal,
-                              fetch: async (request, requestOptions) => {
-                                  const requestStarted = performance.now();
-                                  httpRequestCounters.httpRequests++;
-                                  try {
-                                      const response = settings.useRequestAPI
-                                          ? await host.services.API.nativeFetch(request, requestOptions)
-                                          : await host.services.API.webCompatFetch(request, requestOptions);
-                                      if (!response.ok) httpRequestCounters.httpFailedRequests++;
-                                      return response;
-                                  } catch (error) {
-                                      httpRequestCounters.httpFailedRequests++;
-                                      throw error;
-                                  } finally {
-                                      httpRequestCounters.httpRequestDurationMs += performance.now() - requestStarted;
-                                  }
-                              },
-                          })
-                      )
-                : undefined,
-        remoteUnavailableReason: includeRemote
-            ? settings.remoteType === REMOTE_COUCHDB
-                ? "source-unavailable"
-                : "unsupported-remote"
-            : undefined,
+        // Remote integrity inspection is available only for CouchDB.
+        remote: undefined,
+        remoteUnavailableReason: includeRemote ? "unsupported-remote" : undefined,
         includeRemote,
         path: {
             getPath: (entry) => host.services.path.getPath(entry),

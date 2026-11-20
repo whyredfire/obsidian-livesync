@@ -1,9 +1,4 @@
-import {
-    LOG_LEVEL_VERBOSE,
-    REMOTE_COUCHDB,
-    type LoadedEntry,
-    type MetaEntry,
-} from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { LOG_LEVEL_VERBOSE, type LoadedEntry, type MetaEntry } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { isAnyNote } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import {
     FilePairProcessResults,
@@ -52,10 +47,7 @@ export function canRetryReflectionResource(context: ReflectionPolicyContext, res
         return false;
     }
     const settings = context.setting.currentSettings();
-    return (
-        settings.maxMTimeForReflectEvents <= 0 &&
-        (resource === "local-database" || (settings.remoteType === REMOTE_COUCHDB && settings.readChunksOnline))
-    );
+    return settings.maxMTimeForReflectEvents <= 0 && resource === "local-database";
 }
 
 /** Confirm current provenance or deletion; keep unresolved and policy-owned work distinct. */

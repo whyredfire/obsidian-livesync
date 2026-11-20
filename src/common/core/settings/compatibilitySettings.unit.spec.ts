@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { disableLegacyBulkChunkPreSend, usesLegacyIndexedDBAdapter } from "./compatibilitySettings.ts";
+import { disableLegacyBulkChunkPreSend } from "./compatibilitySettings.ts";
 
 describe("compatibility settings", () => {
-    it.each([true, false])("preserves the operative legacy adapter selection (%s)", (useIndexedDBAdapter) => {
-        expect(usesLegacyIndexedDBAdapter({ useIndexedDBAdapter })).toBe(useIndexedDBAdapter);
-    });
-
     it("disables automatic bulk chunk pre-send and restores its inert size value", () => {
         const settings = { sendChunksBulk: true, sendChunksBulkMaxSize: 16 };
 

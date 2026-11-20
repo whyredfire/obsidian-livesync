@@ -1,10 +1,9 @@
 {
-    "id": "obsidian-livesync",
-    "name": "Self-hosted LiveSync",
-    "version": "1.0.51",
+    "id": "red-sync",
+    "name": "Red Sync",
+    "version": "0.1.0",
     "minAppVersion": "1.7.2",
-    "description": "Community implementation of self-hosted livesync. Reflect your vault changes to some other devices immediately. Please make sure to disable other synchronize solutions to avoid content corruption or duplication.",
-    "author": "vorotamoroz",
-    "authorUrl": "https://github.com/vrtmrz",
+    "description": "Synchronise your vault through a Cloudflare R2 bucket, with optional end-to-end encryption.",
+    "author": "Karan Parashar",
     "isDesktopOnly": false
 }

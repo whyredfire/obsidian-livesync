@@ -16,12 +16,10 @@ import { AbstractModule } from "@/modules/AbstractModule.ts";
 import { $msg, translateIfAvailable } from "@/common/translation";
 import type { InjectableServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/implements/injectable/InjectableServiceHub";
 import type { LiveSyncCore } from "@/main.ts";
-import { REMOTE_COUCHDB, REMOTE_P2P } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
 import { withOwnedRemoteResource } from "@/common/core/replication/ownedRemoteResource";
 import {
     CENTRAL_COMPATIBILITY_REJECTION_REASONS,
     REMOTE_RESOURCE_KINDS,
-    usesEncryptedInternalMetadata,
     type ReplicationAttemptFailure,
     type ReplicatorInstance,
 } from "@vrtmrz/livesync-commonlib/replication";
@@ -216,16 +214,7 @@ export class ModuleResolvingMismatchedTweaks extends AbstractModule {
         if (assessment.alignment === "matched") return [false, false];
         if (this.requiresIdConfigurationReview(assessment)) return [false, false];
         // Retain saved preferences only when they leave the adopted effective values unchanged.
-        const assessedSettings = settingsAfterAdoption(assessment, "adoptPreferred");
         const acceptedSettings = settingsAfterAdoption(assessment, "adoptPreferred", this.settings);
-        if (
-            this.settings.remoteType === REMOTE_COUCHDB &&
-            usesEncryptedInternalMetadata({ ...this.settings, ...acceptedSettings }) !==
-                usesEncryptedInternalMetadata({ ...this.settings, ...assessedSettings })
-        ) {
-            // Adopting encryption prerequisites can activate a previously inactive preference.
-            acceptedSettings.encryptInternalMetadata = assessedSettings.encryptInternalMetadata;
-        }
         const autoAcceptSide = await this._shouldAutoAcceptCompatibleLossy(assessment);
         if (autoAcceptSide === "REMOTE") return [acceptedSettings, false];
         if (autoAcceptSide === "CURRENT") return [true, false];
@@ -299,8 +288,8 @@ export class ModuleResolvingMismatchedTweaks extends AbstractModule {
         const currentTweaks = extractObject(TweakValuesTemplate, this.settings);
         const effectiveTweaks = {
             ...currentTweaks,
-            encryptInternalMetadata:
-                this.settings.remoteType === REMOTE_COUCHDB && usesEncryptedInternalMetadata(this.settings),
+            // Property encryption applies only to CouchDB, so it is never effective here.
+            encryptInternalMetadata: false,
         };
         const assessedTweaks = JSON.stringify(extractObject(TweakValuesTemplate, assessment.currentValues));
         // Replication supplies effective values; legacy callers can supply saved preferences.
@@ -380,9 +369,6 @@ export class ModuleResolvingMismatchedTweaks extends AbstractModule {
     async _checkAndAskUseRemoteConfiguration(
         trialSetting: RemoteDBSettings
     ): Promise<{ result: false | TweakValues; requireFetch: boolean }> {
-        if (trialSetting.remoteType === REMOTE_P2P) {
-            return { result: false, requireFetch: false };
-        }
         const signature = JSON.stringify(trialSetting);
         const preferred = await this.services.tweakValue.fetchRemotePreferred(trialSetting);
         if (JSON.stringify(trialSetting) !== signature) return { result: false, requireFetch: false };

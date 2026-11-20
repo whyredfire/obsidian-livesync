@@ -85,9 +85,7 @@ async function createHarness() {
             ...DEFAULT_SETTINGS,
             remoteType: REMOTE_COUCHDB,
             isConfigured: true,
-            liveSync: true,
-            periodicReplication: false,
-            syncOnSave: false,
+            syncOnSave: true,
             syncOnEditorSave: false,
             syncOnStart: false,
             syncOnFileOpen: false,
@@ -147,7 +145,7 @@ describe("ModuleLog status displays", () => {
         expect(host.statusBarRenderer.render).toHaveBeenCalled();
         expect(host.statusLineRenderer.render).toHaveBeenCalled();
         expect(host.module.statusBarLabels.value.statusBarParts).toContainEqual(
-            expect.objectContaining({ key: "sync-mode", text: "🔗" })
+            expect.objectContaining({ key: "sync-mode", text: "✨" })
         );
         const initialStats = host.stats.value;
         host.statusBarRenderer.render.mockClear();
@@ -174,40 +172,6 @@ describe("ModuleLog status displays", () => {
         );
         expect(host.statusLineRenderer.render).toHaveBeenCalledWith(
             expect.arrayContaining([expect.objectContaining({ key: "sync-mode", text: "🛎" })])
-        );
-    });
-
-    it("shows periodic and event settings together while the transfer stays completed", async () => {
-        const host = await createHarness();
-        Object.assign(host.core.settings, { liveSync: false, periodicReplication: true, syncOnFileOpen: true });
-        host.services.context.events.emitEvent(host.EVENT_SETTING_SAVED, host.core.settings);
-        await host.flushDisplay();
-
-        for (const renderer of [host.statusBarRenderer, host.statusLineRenderer]) {
-            expect(renderer.render).toHaveBeenLastCalledWith(
-                expect.arrayContaining([
-                    expect.objectContaining({ key: "sync-mode", text: "⏰ ✨" }),
-                    expect.objectContaining({ key: "sync", text: "Sync: ⏹" }),
-                ])
-            );
-        }
-    });
-
-    it("removes the ordinary mode badge for a P2P main remote and restores it for Object Storage", async () => {
-        const { REMOTE_P2P, REMOTE_MINIO } = await import("@vrtmrz/livesync-commonlib/compat/common/types");
-        const host = await createHarness();
-        host.core.settings.remoteType = REMOTE_P2P;
-        host.services.context.events.emitEvent(host.EVENT_SETTING_SAVED, host.core.settings);
-        await host.flushDisplay();
-
-        expect(host.module.statusBarLabels.value.statusBarParts.some((part) => part.key === "sync-mode")).toBe(false);
-        expect(host.module.statusBarLabels.value.message).toContain("Sync: 💤 P2P");
-
-        Object.assign(host.core.settings, { remoteType: REMOTE_MINIO, liveSync: false, periodicReplication: true });
-        host.services.context.events.emitEvent(host.EVENT_SETTING_SAVED, host.core.settings);
-        await host.flushDisplay();
-        expect(host.module.statusBarLabels.value.statusBarParts).toContainEqual(
-            expect.objectContaining({ key: "sync-mode", text: "⏰" })
         );
     });
 

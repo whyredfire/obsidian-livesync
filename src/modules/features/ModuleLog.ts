@@ -10,7 +10,6 @@ import {
     LOG_LEVEL_INFO,
     LOG_LEVEL_VERBOSE,
     PREFIXMD_LOGFILE,
-    REMOTE_P2P,
     type LOG_LEVEL,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { scheduleTask } from "octagonal-wheels/concurrency/task";
@@ -37,9 +36,6 @@ import { LOG_LEVEL_NOTICE, setGlobalLogFunction } from "octagonal-wheels/common/
 import { LogPaneView, VIEW_TYPE_LOG } from "./Log/LogPaneView.ts";
 import { withLock } from "octagonal-wheels/concurrency/lock";
 import { $msg } from "@/common/translation";
-import { P2PLogCollector } from "@vrtmrz/livesync-commonlib/compat/replication/trystero/P2PLogCollector";
-import { EVENT_P2P_DIAGNOSTIC, type P2PDiagnosticEvent } from "@vrtmrz/livesync-commonlib/p2p";
-import { formatP2PDiagnosticLog, P2P_DIAGNOSTIC_LOG_KEY } from "./P2PDiagnosticDisplay.ts";
 import { EVENT_SETTING_SAVED } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
 import { REMOTE_REQUEST_ACTIVITY_MINIMUM_VISIBLE_MS, getTrackedRequestCount } from "./RemoteActivityStatus.ts";
 import {
@@ -48,7 +44,6 @@ import {
     createPaddedCounterLabel,
 } from "./StatusBarDisplay.ts";
 import { createFastForwardCheckedChangesDisplay, projectReplicationStatusLabel } from "./ReplicationStatusLabel.ts";
-import { createP2PProgressDisplay, selectReplicationStatus } from "./P2PStatusLabel.ts";
 import { createStatusBarRenderer, type StatusBarPart, type StatusBarRenderer } from "./StatusBarRenderer.ts";
 import { projectSyncModeLabel } from "./syncModeLabel.ts";
 import type { LiveSyncCore } from "@/main.ts";
@@ -165,7 +160,6 @@ export class ModuleLog extends AbstractObsidianModule {
     statusLog = reactiveSource("");
     activeFileStatus = reactiveSource("");
     notifies: { [key: string]: { count: number } } = {};
-    p2pLogCollector = new P2PLogCollector(this.services.context.events);
 
     observeForLogs() {
         const registerDisplay = <T extends { dispose(): void }>(display: T): T => {
@@ -210,16 +204,12 @@ export class ModuleLog extends AbstractObsidianModule {
         const fastForwardCount = registerDisplay(
             createFastForwardCheckedChangesDisplay(this.services.replicator.replicationStatics)
         );
-        const p2pProgress = registerDisplay(createP2PProgressDisplay(this.p2pLogCollector.p2pReplicationStats));
-        const p2pIsPrimary = reactiveSource(this.settings.remoteType === REMOTE_P2P);
         const syncModeLabel = reactiveSource(projectSyncModeLabel(this.settings));
         this.services.API.registerCleanup(
             this.services.context.events.onEvent(EVENT_SETTING_SAVED, (settings) => {
-                p2pIsPrimary.value = settings.remoteType === REMOTE_P2P;
                 syncModeLabel.value = projectSyncModeLabel(settings);
             })
         );
-        this.services.API.registerCleanup(() => this.p2pLogCollector.dispose());
         const replicationStatLabel = computed(() =>
             projectReplicationStatusLabel(
                 this.services.replicator.replicationStatics.value,
@@ -236,11 +226,7 @@ export class ModuleLog extends AbstractObsidianModule {
         const counterPart = (key: string, mark: string, value: number | undefined): StatusBarPart[] =>
             value === undefined ? [] : [{ key, text: " " + mark, value }];
         const statusLineLabel = computed(() => {
-            const { primary: replication, auxiliary: p2p } = selectReplicationStatus(
-                replicationStatLabel(),
-                p2pProgress.value,
-                p2pIsPrimary.value
-            );
+            const replication = replicationStatLabel();
             const queued = queueCountLabel();
             const waiting = waitingLabel();
             const syncMode = syncModeLabel.value;
@@ -260,16 +246,9 @@ export class ModuleLog extends AbstractObsidianModule {
                 ...counterPart("queue-conflicts", "🔩", labelConflictProcessCount.count.value),
             ];
             return {
-                message:
-                    (syncMode ? syncMode.text + " " : "") +
-                    replication.message +
-                    waiting +
-                    queued +
-                    (p2p.message === "" ? "" : "\n" + p2p.message),
-                parts:
-                    p2p.message === "" ? firstLineParts : [...firstLineParts, { key: "p2p", text: "\n" }, ...p2p.parts],
+                message: (syncMode ? syncMode.text + " " : "") + replication.message + waiting + queued,
+                parts: firstLineParts,
                 statusBarParts: firstLineParts,
-                hasP2P: p2p.message !== "",
             };
         });
 
@@ -277,7 +256,7 @@ export class ModuleLog extends AbstractObsidianModule {
             const scheduleMessage = this.services.appLifecycle.isReloadingScheduled()
                 ? `WARNING! RESTARTING OBSIDIAN IS SCHEDULED!\n`
                 : "";
-            const { message, parts, statusBarParts, hasP2P } = statusLineLabel();
+            const { message, parts, statusBarParts } = statusLineLabel();
             const fileStatus = this.activeFileStatus.value;
             const status = scheduleMessage + this.statusLog.value;
             const fileStatusIcon = `${fileStatus && this.settings.hideFileWarningNotice ? " ⛔ SKIP" : ""}`;
@@ -286,7 +265,7 @@ export class ModuleLog extends AbstractObsidianModule {
                 message: `${message}${fileStatusIcon}`,
                 status,
                 parts: [...parts, ...skipPart],
-                statusBarParts: hasP2P ? statusBarParts : [...statusBarParts, ...skipPart],
+                statusBarParts: [...statusBarParts, ...skipPart],
             };
         });
         this.statusBarLabels = statusBarLabels;
@@ -491,10 +470,10 @@ export class ModuleLog extends AbstractObsidianModule {
         });
         this.addCommand({
             id: "dump-debug-info",
-            name: "Generate full report for opening the issue with debug info",
+            name: "Copy debug report",
             callback: async () => {
                 const recentLog = [...logForDump];
-                const report = await generateReport(this.services.setting.currentSettings(), this.core);
+                const report = generateReport(this.services.setting.currentSettings(), this.core);
                 const info = {
                     ...report,
                     recentLog: recentLog.map(redactLog),
@@ -505,7 +484,7 @@ ${stringifyYaml(info)}
 \`\`\`\``;
                 if (await this.services.UI.promptCopyToClipboard("Debug info", yaml)) {
                     new Notice(
-                        "Debug info copied to clipboard. You can paste it in the issue. Be careful as it may contain sensitive information, review it before sharing."
+                        "Debug report copied to the clipboard. Credentials are redacted, but review it before sharing."
                     );
                 }
             },
@@ -609,10 +588,6 @@ ${stringifyYaml(info)}
             this.writeLogToTheFile(now, vaultName, newMessage);
         }
         addLog(newMessage);
-        if (key === P2P_DIAGNOSTIC_LOG_KEY) {
-            if (this.settings?.P2P_useDiagRTC) addDisplayLog(newMessage);
-            return;
-        }
         if (memoOnly) {
             return;
         }
@@ -654,21 +629,6 @@ ${stringifyYaml(info)}
         let logTarget: LogFunction = bufferedLog;
         const log: LogFunction = (message, level, key) => logTarget(message, level, key);
         services.API.addLog.setHandler(log);
-        const lastDiagnosticState = new Map<P2PDiagnosticEvent["category"], P2PDiagnosticEvent>();
-        const unsubscribeDiagnostics = services.context.events.onEvent(EVENT_P2P_DIAGNOSTIC, (event) => {
-            try {
-                const previous = lastDiagnosticState.get(event.category);
-                const repeated =
-                    previous?.code === event.code &&
-                    previous.peerId === event.peerId &&
-                    previous.reason === event.reason;
-                lastDiagnosticState.set(event.category, event);
-                if (repeated && !/(failed|error|timeout|refused|cancelled)$/.test(event.code)) return;
-                services.API.addLog(formatP2PDiagnosticLog(event), LOG_LEVEL_VERBOSE, P2P_DIAGNOSTIC_LOG_KEY);
-            } catch {
-                // Diagnostic output must not interrupt a transport operation.
-            }
-        });
         const collectGlobalLogs = () => {
             const entries = recentGlobalLogEntries.value;
             if (entries.length === 0) return;
@@ -676,8 +636,6 @@ ${stringifyYaml(info)}
             this.recentLogEntries.value = [...this.recentLogEntries.value, ...entries];
         };
         this.logResource = createOwnedResource(log, () => {
-            unsubscribeDiagnostics();
-            lastDiagnosticState.clear();
             logTarget = logToConsole;
             recentGlobalLogEntries.offChanged(collectGlobalLogs);
             this.recentLogEntries.offChanged(this.displayLogEntries);

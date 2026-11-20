@@ -6,7 +6,7 @@ import {
     getTimeBoundSetupURIUsableUntil,
     isTimeBoundSetupURIUsableNow,
 } from "@vrtmrz/livesync-commonlib/setup-uri";
-import { askEncryptingPassphrase, copySetupURI, copySetupURIFull, useSetupURIFeature } from "./setupUri";
+import { askEncryptingPassphrase, copySetupURI, useSetupURIFeature } from "./setupUri";
 
 vi.mock("@vrtmrz/livesync-commonlib/setup-uri", () => ({
     encodeTimeBoundSetupURI: vi.fn(),
@@ -72,38 +72,6 @@ describe("setupObsidian/setupUri", () => {
             skipDefaultValue: true,
         });
         expect(promptCopyToClipboard).toHaveBeenCalledWith("Setup URI", "obsidian://setup-time-bound ");
-        expect(log).toHaveBeenCalled();
-    });
-
-    it("selects old-reader-compatible output without a time limit and preserves full export settings", async () => {
-        const promptCopyToClipboard = vi.fn(async () => true);
-        const currentSettings = { pluginSyncExtendedSetting: true, x: 1 };
-        const host = {
-            services: {
-                setting: { currentSettings: vi.fn(() => currentSettings) },
-                UI: {
-                    confirm: {
-                        askString: vi.fn(async () => "pass"),
-                        askSelectStringDialogue: vi.fn(async () => "Compatible (no time limit)"),
-                    },
-                    promptCopyToClipboard,
-                },
-            },
-        } as any;
-        const log = vi.fn();
-        vi.mocked(encodeTimeBoundSetupURI).mockResolvedValue({
-            uri: "obsidian://setup-compatible ",
-            usableUntil: null,
-        });
-
-        await copySetupURIFull(host, log);
-
-        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith(currentSettings, "pass", {
-            mode: "persistent",
-            removeProperties: [],
-            skipDefaultValue: false,
-        });
-        expect(promptCopyToClipboard).toHaveBeenCalledWith("Setup URI", "obsidian://setup-compatible ");
         expect(log).toHaveBeenCalled();
     });
 
@@ -234,14 +202,12 @@ describe("setupObsidian/setupUri", () => {
         const loadedHandler = addHandler.mock.calls[0][0] as () => Promise<boolean>;
         await loadedHandler();
 
-        expect(addCommand).toHaveBeenCalledTimes(3);
+        expect(addCommand).toHaveBeenCalledTimes(1);
         expect(addCommand).toHaveBeenCalledWith(expect.objectContaining({ id: "livesync-copysetupuri" }));
-        expect(addCommand).toHaveBeenCalledWith(expect.objectContaining({ id: "livesync-copysetupuri-short" }));
-        expect(addCommand).toHaveBeenCalledWith(expect.objectContaining({ id: "livesync-copysetupurifull" }));
         expect(onEventSpy).toHaveBeenCalledWith(EVENT_REQUEST_COPY_SETUP_URI, expect.any(Function));
     });
 
-    it("shows Setup URI variants only when their configuration level is relevant", async () => {
+    it("offers the Setup URI command only once the device is configured", async () => {
         const addHandler = vi.fn();
         const commands: Array<{
             id: string;
@@ -285,19 +251,12 @@ describe("setupObsidian/setupUri", () => {
 
         settings.isConfigured = true;
         expect(command("livesync-copysetupuri").checkCallback?.(true)).toBe(true);
-        expect(command("livesync-copysetupuri-short").checkCallback?.(true)).toBe(false);
-        expect(command("livesync-copysetupurifull").checkCallback?.(true)).toBe(false);
-
-        settings.usePluginSync = true;
-        settings.useAdvancedMode = true;
-        expect(command("livesync-copysetupuri-short").checkCallback?.(true)).toBe(true);
-        expect(command("livesync-copysetupurifull").checkCallback?.(true)).toBe(true);
         expect(host.services.UI.confirm.askString).not.toHaveBeenCalled();
         settings.isConfigured = false;
         for (const registered of commands) expect(registered.checkCallback?.(false)).toBe(false);
         expect(host.services.UI.confirm.askString).not.toHaveBeenCalled();
         settings.isConfigured = true;
         for (const registered of commands) expect(registered.checkCallback?.(false)).toBe(true);
-        expect(host.services.UI.confirm.askString).toHaveBeenCalledTimes(3);
+        expect(host.services.UI.confirm.askString).toHaveBeenCalledTimes(1);
     });
 });

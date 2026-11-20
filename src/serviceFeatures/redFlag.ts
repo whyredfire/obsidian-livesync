@@ -7,7 +7,7 @@ import {
 } from "@vrtmrz/livesync-commonlib/compat/common/models/redflag.const";
 import FetchEverything from "@/modules/features/SetupWizard/dialogs/FetchEverything.svelte";
 import RebuildEverything from "@/modules/features/SetupWizard/dialogs/RebuildEverything.svelte";
-import { REMOTE_MINIO, REMOTE_P2P } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
+import { REMOTE_MINIO } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
 import { assessTweakCompatibility, type ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/settings";
 import { RemotePreferredTweakStatuses } from "@vrtmrz/livesync-commonlib/compat/common/models/tweak.definition";
 import type {
@@ -18,7 +18,6 @@ import { askAndPerformFastSetupOnScheduledFetchAll } from "./redFlag.simpleFetch
 import { deleteFetchFlags } from "./redFlag.fetchState";
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
 import { activateRemoteConfiguration } from "@vrtmrz/livesync-commonlib/remote-configurations";
-import { isP2PMainRemote } from "@/common/core/settings/remoteConfiguration";
 import { $msg } from "@/common/translation";
 
 /**
@@ -354,13 +353,6 @@ export async function adjustSettingToRemoteIfNeeded(
         return true;
     }
 
-    // P2P has no centralised remote configuration; skip to avoid a spurious
-    // "Failed to connect to the remote server" error dialog.
-    if (config.remoteType === REMOTE_P2P) {
-        log("Remote configuration fetch skipped (P2P mode).", LOG_LEVEL_INFO);
-        return true;
-    }
-
     const canProceed = await adjustSettingToRemote(host, log, config, operation);
     if (!canProceed) {
         log("Remote configuration not applied.", LOG_LEVEL_NOTICE);
@@ -499,10 +491,8 @@ export function createRebuildFlagHandler(
     // Handle the rebuild everything scheduled operation
     const onScheduled = async () => {
         const settings = host.services.setting.currentSettings();
-        const method = await host.services.UI.dialogManager.openWithExplicitCancel<
-            RebuildEverythingResult,
-            { isP2P: boolean }
-        >(RebuildEverything, { isP2P: isP2PMainRemote(settings) });
+        const method =
+            await host.services.UI.dialogManager.openWithExplicitCancel<RebuildEverythingResult>(RebuildEverything);
         if (method === "cancelled") {
             log("Rebuild everything cancelled by user.", LOG_LEVEL_NOTICE);
             return await cancelScheduledInitialisation(host, cleanupFlag);

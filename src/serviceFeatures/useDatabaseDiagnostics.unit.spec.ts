@@ -67,15 +67,13 @@ function fixture() {
 }
 
 describe("database diagnostics serviceFeature", () => {
-    it("retains the existing Advanced-mode Usage command gate in its new owner", async () => {
+    it("offers both diagnostic commands while the database is ready", async () => {
         const data = fixture();
         for (const initialise of data.initialise) await initialise();
         const usage = data.commands.find((command) => command.id === "analyse-database")!;
         const integrity = data.commands.find((command) => command.id === "inspect-database-integrity")!;
-        expect(usage.checkCallback(true)).toBe(false);
-        expect(integrity.checkCallback(true)).toBe(true);
-        data.settings.useAdvancedMode = true;
         expect(usage.checkCallback(true)).toBe(true);
+        expect(integrity.checkCallback(true)).toBe(true);
         data.setReady(false);
         expect(usage.checkCallback(true)).toBe(false);
         expect(integrity.checkCallback(true)).toBe(false);
@@ -86,7 +84,6 @@ describe("database diagnostics serviceFeature", () => {
         "rechecks database availability before executing %s",
         async (id) => {
             const data = fixture();
-            data.settings.useAdvancedMode = true;
             for (const initialise of data.initialise) await initialise();
             const command = data.commands.find((candidate) => candidate.id === id)!;
             expect(command.checkCallback(true)).toBe(true);

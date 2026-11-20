@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "@vrtmrz/livesync-commonlib/settings";
-import { REMOTE_MINIO, REMOTE_P2P } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
+import { REMOTE_MINIO } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
 import {
     FlagFilesHumanReadable,
     FlagFilesOriginal,
@@ -26,7 +26,13 @@ const stage2 = SIMPLE_FETCH_STAGE2_REMOTE_DELETE_NONE;
 
 function fixture() {
     const files = new Map<string, string>([[modern, ""]]);
-    const settings = { ...DEFAULT_SETTINGS, couchDB_URI: "https://example.invalid", couchDB_DBNAME: "vault" };
+    const settings = {
+        ...DEFAULT_SETTINGS,
+        remoteType: REMOTE_MINIO,
+        endpoint: "https://example.invalid",
+        region: "auto",
+        bucket: "vault",
+    };
     const storage = {
         normalisePath: (path: string) => path,
         isExists: vi.fn(async (path: string) => files.has(path)),
@@ -146,56 +152,35 @@ describe("Fetch flag state", () => {
         expect(storage.writeFileAuto).not.toHaveBeenCalled();
     });
 
-    it.each([
-        { remoteType: "" as const, couchDB_DBNAME: "different-vault" },
-        { remoteType: REMOTE_MINIO, endpoint: "https://s3.invalid", bucket: "other-bucket" },
-        { remoteType: REMOTE_P2P, P2P_roomID: "other-room" },
-    ])("requires explicit confirmation for the currently selected remote: %j", async (remote) => {
-        const { host, settings, confirm } = fixture();
-        await saveFetchSelection(host, stage1, stage2);
-        Object.assign(settings, remote);
-        await expect(readFetchSelection(host)).resolves.toMatchObject({ stage1, stage2 });
-        confirm.mockImplementationOnce(async (_title, _message, buttons) => buttons[0]);
-        await askSimpleFetchMode(host);
-        expect(confirm).toHaveBeenCalledOnce();
-        expect(confirm.mock.calls[0][1]).toContain("Current remote:");
-    });
+    it.each([{ endpoint: "https://other.invalid" }, { bucket: "other-bucket" }, { bucketPrefix: "other-vault/" }])(
+        "requires explicit confirmation for the currently selected remote: %j",
+        async (remote) => {
+            const { host, settings, confirm } = fixture();
+            await saveFetchSelection(host, stage1, stage2);
+            Object.assign(settings, remote);
+            await expect(readFetchSelection(host)).resolves.toMatchObject({ stage1, stage2 });
+            confirm.mockImplementationOnce(async (_title, _message, buttons) => buttons[0]);
+            await askSimpleFetchMode(host);
+            expect(confirm).toHaveBeenCalledOnce();
+            expect(confirm.mock.calls[0][1]).toContain("Current remote:");
+        }
+    );
 });
 
 describe("Fetch destination description", () => {
-    it("omits URL credentials, query parameters, fragments, and connection secrets", () => {
+    it("describes the bucket without URL credentials, query parameters, fragments, or secrets", () => {
         const { settings } = fixture();
         Object.assign(settings, {
-            couchDB_URI: "https://alice:secret@example.invalid/path?token=secret#secret",
-            couchDB_USER: "alice",
-            couchDB_PASSWORD: "secret",
-            jwtKey: "secret",
+            endpoint: "https://alice:secret@account.r2.cloudflarestorage.com/path?token=secret#secret",
+            accessKey: "secret",
+            secretKey: "secret",
             passphrase: "secret",
-            additionalSuffixOfDatabaseName: "another-device",
-        });
-        expect(describeFetchRemote(settings)).toBe("CouchDB / https://example.invalid/path / vault");
-    });
-
-    it("shows Object Storage prefixes and P2P rooms without relay credentials", () => {
-        const { settings } = fixture();
-        Object.assign(settings, {
-            remoteType: REMOTE_MINIO,
-            endpoint: "https://s3.invalid",
-            region: "region",
-            bucket: "vault",
             bucketPrefix: "one/",
         });
-        expect(describeFetchRemote(settings)).toContain("vault / one/");
-        Object.assign(settings, {
-            remoteType: REMOTE_P2P,
-            P2P_roomID: "group",
-            P2P_passphrase: "secret",
-            P2P_relays: "wss://alice:secret@relay.invalid?token=secret,wss://other.invalid",
-        });
         const description = describeFetchRemote(settings);
-        expect(description).toContain("group");
-        expect(description).toContain("wss://relay.invalid");
-        expect(description).toContain("wss://other.invalid");
+        expect(description).toBe(
+            "Object Storage / https://account.r2.cloudflarestorage.com/path / auto / vault / one/"
+        );
         expect(description).not.toContain("secret");
         expect(description).not.toContain("alice");
     });

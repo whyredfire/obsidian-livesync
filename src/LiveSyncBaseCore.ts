@@ -29,10 +29,7 @@ import {
     composeCoreFeatures,
     initialiseSharedCoreFeatures,
     type HostFeatureInitialiser,
-    type LiveSyncCoreFeatureViews,
 } from "./serviceFeatures/coreFeatures";
-
-export type { LiveSyncCoreFeatureViews } from "./serviceFeatures/coreFeatures";
 
 export interface StartupDatabaseOptions {
     readonly discardReplicationResultSnapshotOnReset?: boolean;
@@ -286,8 +283,8 @@ export class LiveSyncBaseCore<
      * Initialise ServiceFeatures.
      * (Please refer `serviceFeatures` for more details)
      */
-    initialiseServiceFeatures(): Pick<LiveSyncCoreFeatureViews, "replicationScheduling"> {
-        return initialiseSharedCoreFeatures(this);
+    initialiseServiceFeatures(): void {
+        initialiseSharedCoreFeatures(this);
     }
 }
 

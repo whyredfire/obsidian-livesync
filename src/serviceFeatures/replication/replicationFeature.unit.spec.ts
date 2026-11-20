@@ -10,8 +10,15 @@ import {
 import { REMOTE_FEATURE_GENERATION } from "@vrtmrz/livesync-commonlib/replication";
 import { promiseWithResolvers } from "octagonal-wheels/promises";
 import { EVENT_APPLICATION_READY } from "@/common/events";
-import { createReplicationFeature, useReplicationFeature } from "./index";
+import { createReplicationFeature } from "./index";
 import { ReplicateResultProcessor } from "./ReplicateResultProcessor";
+
+/** Compose and register the replication feature, returning its recovery view (test helper). */
+function useReplicationFeature(core: Parameters<typeof createReplicationFeature>[0]) {
+    const feature = createReplicationFeature(core);
+    feature.register();
+    return feature.recovery;
+}
 
 type BooleanHandler = (showMessage: boolean) => Promise<boolean>;
 type ParseHandler = (documents: PouchDB.Core.ExistingDocument<EntryDoc>[]) => Promise<boolean>;

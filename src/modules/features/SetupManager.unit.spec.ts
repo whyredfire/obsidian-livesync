@@ -4,17 +4,11 @@ import {
     DEFAULT_SETTINGS,
     REMOTE_COUCHDB,
     REMOTE_MINIO,
-    REMOTE_P2P,
     type ObsidianLiveSyncSettings,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { SettingService } from "@vrtmrz/livesync-commonlib/compat/services/base/SettingService";
 import { ServiceContext } from "@vrtmrz/livesync-commonlib/context";
 import { createNewVaultSettings } from "@/common/core/settings/newVaultSettings";
-import type {
-    P2PConnectionProbeAdmission,
-    P2PConnectionProbeAdmissionResult,
-    P2PConnectionProbeSettings,
-} from "@vrtmrz/livesync-commonlib/p2p";
 
 vi.mock("./SetupWizard/dialogs/Intro.svelte", () => ({ default: {} }));
 vi.mock("./SetupWizard/dialogs/SelectMethodNewUser.svelte", () => ({ default: {} }));
@@ -52,11 +46,12 @@ function createLegacyRemoteSetting(): ObsidianLiveSyncSettings {
         ...DEFAULT_SETTINGS,
         remoteConfigurations: {},
         activeConfigurationId: "",
-        remoteType: REMOTE_COUCHDB,
-        couchDB_URI: "http://localhost:5984",
-        couchDB_USER: "user",
-        couchDB_PASSWORD: "password",
-        couchDB_DBNAME: "vault",
+        remoteType: REMOTE_MINIO,
+        endpoint: "https://account.r2.cloudflarestorage.com",
+        accessKey: "access",
+        secretKey: "secret",
+        bucket: "vault",
+        region: "auto",
     };
 }
 
@@ -134,23 +129,13 @@ function createSetupManager() {
         },
     });
 
-    const p2pSetupConnectionProbe: P2PConnectionProbeAdmission = {
-        async run<T>(
-            _settings: P2PConnectionProbeSettings,
-            runOwnedTrial: () => Promise<T>
-        ): Promise<P2PConnectionProbeAdmissionResult<T>> {
-            return { status: "trial", result: await runOwnedTrial() };
-        },
-    };
     const manager = new SetupManager(core);
-    manager.registerP2PSetupConnectionProbe(p2pSetupConnectionProbe);
 
     return {
         manager,
         setting,
         dialogManager,
         core,
-        p2pSetupConnectionProbe,
     };
 }
 
@@ -160,20 +145,7 @@ describe("SetupManager", () => {
         vi.restoreAllMocks();
     });
 
-    it("opens P2P Setup with the registered owner admission", async () => {
-        const { manager, setting, dialogManager, p2pSetupConnectionProbe } = createSetupManager();
-        const settings = setting.currentSettings();
-        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("cancelled");
-
-        await expect(manager.openP2PSetup(settings)).resolves.toBe("cancelled");
-
-        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({ settings, connectionProbe: p2pSetupConnectionProbe })
-        );
-    });
-
-    it.each([REMOTE_COUCHDB, REMOTE_MINIO])(
+    it.each([REMOTE_MINIO])(
         "uses an existing remote declaration during first manual setup for %s",
         async (remoteType) => {
             const { manager, core, dialogManager } = createSetupManager();
@@ -196,8 +168,7 @@ describe("SetupManager", () => {
                 bucketPrefix: "",
             });
             const initial = { ...createLegacyRemoteSetting(), pathNormalizationVersion: 1 } as ObsidianLiveSyncSettings;
-            if (remoteType === REMOTE_COUCHDB) await manager.onCouchDBManualSetup(UserMode.NewUser, initial);
-            else await manager.onBucketManualSetup(UserMode.NewUser, initial);
+            await manager.onBucketManualSetup(UserMode.NewUser, initial);
             expect(confirm).toHaveBeenCalledWith(
                 expect.objectContaining({ pathNormalizationVersion: 0 }),
                 UserMode.NewUser,
@@ -219,36 +190,15 @@ describe("SetupManager", () => {
         });
         const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
         dialogManager.openWithExplicitCancel.mockResolvedValue({
-            couchDB_URI: "https://example.test",
-            couchDB_DBNAME: "vault",
+            endpoint: "https://example.test",
+            bucket: "vault",
         });
-        await manager.onCouchDBManualSetup(UserMode.NewUser, createNewVaultSettings());
+        await manager.onBucketManualSetup(UserMode.NewUser, createNewVaultSettings());
         expect(confirm).toHaveBeenCalledWith(
             expect.objectContaining({ pathNormalizationVersion: expected }),
             UserMode.NewUser,
             true
         );
-    });
-
-    it("does not apply setup settings when identity inspection fails", async () => {
-        const { manager, core, dialogManager, setting } = createSetupManager();
-        const failure = new Error("remote unavailable");
-        const dispose = vi.fn(async () => undefined);
-        core.services.replicator.createRemoteResource.mockResolvedValue({
-            inspectPathIdentity: vi.fn(async () => {
-                throw failure;
-            }),
-            dispose,
-        });
-        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
-        dialogManager.openWithExplicitCancel.mockResolvedValue({
-            couchDB_URI: "https://example.test",
-            couchDB_DBNAME: "vault",
-        });
-        await expect(manager.onCouchDBManualSetup(UserMode.NewUser, createNewVaultSettings())).resolves.toBe(false);
-        expect(confirm).not.toHaveBeenCalled();
-        expect(setting.saveSettingData).not.toHaveBeenCalled();
-        expect(dispose).toHaveBeenCalledOnce();
     });
 
     it.each([
@@ -258,10 +208,10 @@ describe("SetupManager", () => {
         const { manager, core, dialogManager } = createSetupManager();
         const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
         dialogManager.openWithExplicitCancel.mockResolvedValue({
-            couchDB_URI: "https://example.test",
-            couchDB_DBNAME: "vault",
+            endpoint: "https://example.test",
+            bucket: "vault",
         });
-        await manager.onCouchDBManualSetup(mode, createLegacyRemoteSetting(), activate);
+        await manager.onBucketManualSetup(mode, createLegacyRemoteSetting(), activate);
         expect(core.services.replicator.createRemoteResource).not.toHaveBeenCalled();
         expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ pathNormalizationVersion: 0 }), mode, activate);
     });
@@ -287,10 +237,9 @@ describe("SetupManager", () => {
         const result = await manager.onUseSetupURI(UserMode.Unknown, "mock-config://settings");
 
         expect(result).toBe(true);
-        expect(setting.currentSettings().remoteConfigurations["legacy-couchdb"]?.uri).toContain(
-            "sls+http://user:password@localhost:5984"
-        );
-        expect(setting.currentSettings().activeConfigurationId).toBe("legacy-couchdb");
+        const activeId = setting.currentSettings().activeConfigurationId;
+        expect(activeId).toMatch(/^legacy-/);
+        expect(setting.currentSettings().remoteConfigurations[activeId]?.uri).toMatch(/^sls\+s3:\/\//);
     });
 
     it("compatibility: treats omitted identity fields in a Setup URI as legacy defaults", async () => {
@@ -360,10 +309,9 @@ describe("SetupManager", () => {
 
         expect(result).toBe(true);
         expect(decodeSettingsFromQRCodeData).toHaveBeenCalledWith("qr-data");
-        expect(setting.currentSettings().remoteConfigurations["legacy-couchdb"]?.uri).toContain(
-            "sls+http://user:password@localhost:5984"
-        );
-        expect(setting.currentSettings().activeConfigurationId).toBe("legacy-couchdb");
+        const activeId = setting.currentSettings().activeConfigurationId;
+        expect(activeId).toMatch(/^legacy-/);
+        expect(setting.currentSettings().remoteConfigurations[activeId]?.uri).toMatch(/^sls\+s3:\/\//);
     });
 
     it("compatibility: applies legacy defaults when QR data omits ID derivation fields", async () => {
@@ -546,56 +494,18 @@ describe("SetupManager", () => {
         expect(setting.currentSettings().isConfigured).toBe(true);
     });
 
-    it("identifies P2P when opening the new-user initialisation confirmation", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
-        setting.settings = { ...setting.currentSettings(), isConfigured: false };
-        dialogManager.openWithExplicitCancel.mockResolvedValueOnce(true);
-        const p2pProfileId = "p2p-profile";
-
-        await manager.onConfirmApplySettingsFromWizard(
-            {
-                ...setting.currentSettings(),
-                isConfigured: true,
-                // Imported profile settings can still carry the previous compatibility field
-                // until the selected profile is projected by the setting lifecycle.
-                remoteType: REMOTE_COUCHDB,
-                activeConfigurationId: p2pProfileId,
-                remoteConfigurations: {
-                    [p2pProfileId]: {
-                        id: p2pProfileId,
-                        name: "P2P room",
-                        uri: "sls+p2p://:secret@team-room?relays=wss%3A%2F%2Frelay.example",
-                        isEncrypted: false,
-                    },
-                },
-            },
-            UserMode.NewUser
-        );
-
-        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(expect.anything(), {
-            isP2P: true,
-            enableUnencryptedContent: false,
-        });
-    });
-
     it.each([
         {
             name: "CouchDB",
             remoteType: REMOTE_COUCHDB,
             restart: "Restart and Fetch Data",
-            settingsPage: "Sync Settings",
+            settingsPage: "Automatic sync",
         },
         {
             name: "Object Storage",
             remoteType: REMOTE_MINIO,
             restart: "Restart and Fetch Data",
-            settingsPage: "Sync Settings",
-        },
-        {
-            name: "P2P",
-            remoteType: REMOTE_P2P,
-            restart: "Restart and Select Source Device",
-            settingsPage: "P2P Status",
+            settingsPage: "Automatic sync",
         },
     ])(
         "waits for the restart confirmation before reserving Fetch for $name",
@@ -630,34 +540,41 @@ describe("SetupManager", () => {
         }
     );
 
-    it.each(["Cancel", false])("leaves settings and Fetch alone when the restart dialogue returns %s", async (action) => {
-        const { manager, setting, dialogManager, core } = createSetupManager();
-        const applyExternalSettings = vi.spyOn(setting, "applyExternalSettings");
-        const extra = vi.fn();
-        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("apply");
-        core.confirm.confirmWithMessage.mockResolvedValueOnce(action);
+    it.each(["Cancel", false])(
+        "leaves settings and Fetch alone when the restart dialogue returns %s",
+        async (action) => {
+            const { manager, setting, dialogManager, core } = createSetupManager();
+            const applyExternalSettings = vi.spyOn(setting, "applyExternalSettings");
+            const extra = vi.fn();
+            dialogManager.openWithExplicitCancel.mockResolvedValueOnce("apply");
+            core.confirm.confirmWithMessage.mockResolvedValueOnce(action);
 
-        await expect(
-            manager.onConfirmApplySettingsFromWizard(
-                { ...createLegacyRemoteSetting(), isConfigured: true },
-                UserMode.ExistingUser,
-                true,
-                extra
-            )
-        ).resolves.toBe(false);
+            await expect(
+                manager.onConfirmApplySettingsFromWizard(
+                    { ...createLegacyRemoteSetting(), isConfigured: true },
+                    UserMode.ExistingUser,
+                    true,
+                    extra
+                )
+            ).resolves.toBe(false);
 
-        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledOnce();
-        expect(core.confirm.confirmWithMessage).toHaveBeenCalledOnce();
-        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
-        expect(applyExternalSettings).not.toHaveBeenCalled();
-        expect(extra).not.toHaveBeenCalled();
-    });
+            expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledOnce();
+            expect(core.confirm.confirmWithMessage).toHaveBeenCalledOnce();
+            expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+            expect(applyExternalSettings).not.toHaveBeenCalled();
+            expect(extra).not.toHaveBeenCalled();
+        }
+    );
 
     it("does not add a migrated remote profile to the current settings when cancelling a legacy Setup URI", async () => {
         const { manager, setting, dialogManager, core } = createSetupManager();
         const before = structuredClone(setting.currentSettings());
         dialogManager.openWithExplicitCancel
-            .mockResolvedValueOnce({ isConfigured: true, remoteType: REMOTE_COUCHDB, couchDB_URI: "http://localhost:5984" })
+            .mockResolvedValueOnce({
+                isConfigured: true,
+                remoteType: REMOTE_COUCHDB,
+                couchDB_URI: "http://localhost:5984",
+            })
             .mockResolvedValueOnce("apply");
         core.confirm.confirmWithMessage.mockResolvedValueOnce("Cancel");
 
@@ -720,10 +637,10 @@ describe("SetupManager", () => {
         const applySettings = vi.fn(async () => undefined);
         dialogManager.openWithExplicitCancel.mockResolvedValueOnce("cancelled");
 
-        const result = await manager.applySettingsWithInitialisationChoice({ applySettings, isP2P: true });
+        const result = await manager.applySettingsWithInitialisationChoice({ applySettings });
 
         expect(result).toEqual({ result: "cancelled" });
-        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(expect.anything(), { isP2P: true });
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(expect.anything());
         expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
         expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
         expect(applySettings).not.toHaveBeenCalled();
@@ -734,7 +651,7 @@ describe("SetupManager", () => {
         const applySettings = vi.fn(async () => undefined);
         dialogManager.openWithExplicitCancel.mockResolvedValueOnce("fetch");
 
-        const result = await manager.applySettingsWithInitialisationChoice({ applySettings, isP2P: false });
+        const result = await manager.applySettingsWithInitialisationChoice({ applySettings });
 
         expect(result).toEqual({ result: "scheduled", mode: "fetch" });
         expect(core.rebuilder.scheduleFetch).toHaveBeenCalledWith(expect.any(Function));
@@ -749,7 +666,7 @@ describe("SetupManager", () => {
         core.rebuilder.scheduleRebuild.mockResolvedValueOnce(false);
         dialogManager.openWithExplicitCancel.mockResolvedValueOnce("rebuild");
 
-        const result = await manager.applySettingsWithInitialisationChoice({ applySettings, isP2P: false });
+        const result = await manager.applySettingsWithInitialisationChoice({ applySettings });
 
         expect(result).toEqual({ result: "failed", mode: "rebuild" });
         expect(applySettings).not.toHaveBeenCalled();
@@ -763,7 +680,6 @@ describe("SetupManager", () => {
 
         const result = await manager.applySettingsWithInitialisationChoice({
             applySettings,
-            isP2P: false,
             validateChoice,
         });
 
@@ -818,85 +734,6 @@ describe("SetupManager", () => {
         }
     );
 
-    it("adds and activates a manually configured CouchDB without replacing existing profiles", async () => {
-        const { manager, setting, dialogManager, core } = createSetupManager();
-        setting.settings = {
-            ...setting.currentSettings(),
-            customChunkSize: 60,
-            isConfigured: true,
-            remoteConfigurations: {
-                existing: {
-                    id: "existing",
-                    name: "Existing remote",
-                    uri: "sls+http://old:secret@old.example/?db=old",
-                    isEncrypted: false,
-                },
-            },
-            activeConfigurationId: "existing",
-        };
-        dialogManager.openWithExplicitCancel
-            .mockResolvedValueOnce({
-                couchDB_URI: "https://couch.example",
-                couchDB_USER: "alice",
-                couchDB_PASSWORD: "secret",
-                couchDB_DBNAME: "notes",
-                couchDB_CustomHeaders: "",
-                useJWT: false,
-                jwtAlgorithm: "",
-                jwtKey: "",
-                jwtKid: "",
-                jwtSub: "",
-                jwtExpDuration: 5,
-                useRequestAPI: false,
-            })
-            .mockResolvedValueOnce("apply");
-        core.confirm.confirmWithMessage.mockResolvedValueOnce("Restart and Fetch Data");
-
-        await manager.onCouchDBManualSetup(UserMode.ExistingUser, setting.currentSettings());
-
-        const current = setting.currentSettings();
-        expect(current.customChunkSize).toBe(60);
-        expect(current.remoteConfigurations.existing).toBeDefined();
-        expect(Object.keys(current.remoteConfigurations)).toHaveLength(2);
-        expect(current.activeConfigurationId).not.toBe("existing");
-        const activeProfile = current.remoteConfigurations[current.activeConfigurationId];
-        expect(activeProfile?.name).toBe("CouchDB couch.example");
-        expect(activeProfile?.uri).toContain("sls+https://alice:secret@couch.example");
-    });
-
-    it.each([
-        [UserMode.NewUser, "create-or-connect"],
-        [UserMode.ExistingUser, "connect-existing"],
-        [UserMode.Update, "settings"],
-    ] as const)(
-        "passes the %s CouchDB database policy to the manual setup dialogue",
-        async (userMode, expectedMode) => {
-            const { manager, setting, dialogManager } = createSetupManager();
-            const couchConf = {
-                couchDB_URI: "https://couch.example",
-                couchDB_USER: "alice",
-                couchDB_PASSWORD: "secret",
-                couchDB_DBNAME: "notes",
-                couchDB_CustomHeaders: "",
-                useJWT: false,
-                jwtAlgorithm: "",
-                jwtKey: "",
-                jwtKid: "",
-                jwtSub: "",
-                jwtExpDuration: 5,
-                useRequestAPI: false,
-            };
-            dialogManager.openWithExplicitCancel.mockResolvedValueOnce(couchConf).mockResolvedValueOnce("cancelled");
-
-            await manager.onCouchDBManualSetup(userMode, setting.currentSettings());
-
-            expect(dialogManager.openWithExplicitCancel).toHaveBeenNthCalledWith(1, expect.anything(), {
-                settings: setting.currentSettings(),
-                mode: expectedMode,
-            });
-        }
-    );
-
     it("adds and activates a manually configured Object Storage profile without replacing existing profiles", async () => {
         const { manager, setting, dialogManager, core } = createSetupManager();
         setting.settings = {
@@ -938,81 +775,6 @@ describe("SetupManager", () => {
         expect(activeProfile?.uri).toContain("sls+s3://key:secret@storage.example");
     });
 
-    it("creates and selects a P2P profile during fresh manual onboarding", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
-        setting.settings = {
-            ...setting.currentSettings(),
-            isConfigured: false,
-            remoteConfigurations: {},
-            activeConfigurationId: "",
-            P2P_ActiveRemoteConfigurationId: "",
-        };
-        dialogManager.openWithExplicitCancel
-            .mockResolvedValueOnce({
-                P2P_Enabled: true,
-                P2P_roomID: "team-room",
-                P2P_passphrase: "secret",
-                P2P_relays: "wss://relay.example",
-                P2P_AppID: "self-hosted-livesync",
-                P2P_AutoStart: true,
-                P2P_AutoBroadcast: false,
-                P2P_turnServers: "",
-                P2P_turnUsername: "",
-                P2P_turnCredential: "",
-            })
-            .mockResolvedValueOnce(true);
-
-        await manager.onP2PManualSetup(UserMode.NewUser, setting.currentSettings());
-
-        const current = setting.currentSettings();
-        expect(current.customChunkSize).toBe(0);
-        expect(Object.keys(current.remoteConfigurations)).toHaveLength(1);
-        expect(current.activeConfigurationId).not.toBe("");
-        expect(current.P2P_ActiveRemoteConfigurationId).toBe(current.activeConfigurationId);
-        const activeProfile = current.remoteConfigurations[current.activeConfigurationId];
-        expect(activeProfile?.name).toBe("P2P team-room");
-        expect(activeProfile?.uri).toContain("sls+p2p://");
-    });
-
-    it("selects a configured P2P profile without replacing the active main remote", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
-        setting.settings = {
-            ...setting.currentSettings(),
-            isConfigured: true,
-            remoteConfigurations: {
-                main: {
-                    id: "main",
-                    name: "Main CouchDB",
-                    uri: "sls+http://old:secret@old.example/?db=old",
-                    isEncrypted: false,
-                },
-            },
-            activeConfigurationId: "main",
-            P2P_ActiveRemoteConfigurationId: "",
-        };
-        dialogManager.openWithExplicitCancel.mockResolvedValueOnce({
-            P2P_Enabled: true,
-            P2P_roomID: "team-room",
-            P2P_passphrase: "secret",
-            P2P_relays: "wss://relay.example",
-            P2P_AppID: "self-hosted-livesync",
-            P2P_AutoStart: true,
-            P2P_AutoBroadcast: false,
-            P2P_turnServers: "",
-            P2P_turnUsername: "",
-            P2P_turnCredential: "",
-        });
-
-        await manager.onP2PManualSetup(UserMode.Unknown, setting.currentSettings(), false);
-
-        const current = setting.currentSettings();
-        expect(Object.keys(current.remoteConfigurations)).toHaveLength(2);
-        expect(current.activeConfigurationId).toBe("main");
-        expect(current.P2P_ActiveRemoteConfigurationId).not.toBe("");
-        expect(current.P2P_ActiveRemoteConfigurationId).not.toBe("main");
-        expect(current.remoteConfigurations[current.P2P_ActiveRemoteConfigurationId]?.name).toBe("P2P team-room");
-    });
-
     it("does not register Object Storage when final confirmation is cancelled", async () => {
         const { manager, setting, dialogManager } = createSetupManager();
         setting.settings = {
@@ -1048,65 +810,29 @@ describe("SetupManager", () => {
         expect(setting.currentSettings().remoteConfigurations).toEqual(before);
         expect(setting.currentSettings().activeConfigurationId).toBe("existing");
     });
-
-    it("does not mutate an existing P2P profile when final confirmation is cancelled", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
-        setting.settings = {
-            ...setting.currentSettings(),
-            isConfigured: true,
-            remoteConfigurations: {
-                existing: {
-                    id: "existing",
-                    name: "Existing P2P remote",
-                    uri: "sls+p2p://old-room?passphrase=old-secret",
-                    isEncrypted: false,
-                },
-            },
-            activeConfigurationId: "existing",
-            P2P_ActiveRemoteConfigurationId: "existing",
-        };
-        const before = structuredClone(setting.currentSettings().remoteConfigurations);
-        dialogManager.openWithExplicitCancel
-            .mockResolvedValueOnce({
-                P2P_Enabled: true,
-                P2P_roomID: "new-room",
-                P2P_passphrase: "new-secret",
-                P2P_relays: "wss://relay.example",
-                P2P_AppID: "self-hosted-livesync",
-                P2P_AutoStart: true,
-                P2P_AutoBroadcast: false,
-                P2P_turnServers: "",
-                P2P_turnUsername: "",
-                P2P_turnCredential: "",
-            })
-            .mockResolvedValueOnce("cancelled");
-
-        await manager.onP2PManualSetup(UserMode.ExistingUser, setting.currentSettings());
-
-        expect(setting.currentSettings().remoteConfigurations).toEqual(before);
-        expect(setting.currentSettings().activeConfigurationId).toBe("existing");
-        expect(setting.currentSettings().P2P_ActiveRemoteConfigurationId).toBe("existing");
-    });
 });
 
-describe("internal Metadata configuration", () => {
-    it.each([true, false])(
-        "applies the preference only after accepting the no-Rebuild warning (%s)",
-        async (accept) => {
-            const { manager, setting, dialogManager, core } = createSetupManager();
-            const current = { ...setting.settings, encryptInternalMetadata: false, remoteType: REMOTE_COUCHDB };
-            dialogManager.openWithExplicitCancel.mockResolvedValue({ ...current, encryptInternalMetadata: true });
-            const ask = vi.fn(async (_message: string, choices: string[]) => (accept ? choices[0] : "Cancel"));
-            core.confirm = { askSelectStringDialogue: ask };
-            const apply = vi.spyOn(setting, "applyPartial").mockResolvedValue(undefined);
-            await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(accept);
-            expect(ask.mock.calls[0][1][0]).toContain("update every other device first");
-            expect(ask.mock.calls[0][0]).toContain("currently running LiveSync");
-            expect(apply).toHaveBeenCalledTimes(accept ? 1 : 0);
-            expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
-            expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
-        }
-    );
+describe("supported remote types", () => {
+    it("rejects a Setup URI which does not contain an S3 connection", async () => {
+        const { manager, dialogManager } = createSetupManager();
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce({
+            ...createLegacyRemoteSetting(),
+            remoteType: REMOTE_COUCHDB,
+        });
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
+
+        await expect(manager.onUseSetupURI(UserMode.Unknown)).resolves.toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("accepts a Setup URI which contains an S3 connection", async () => {
+        const { manager, dialogManager } = createSetupManager();
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce(createLegacyRemoteSetting());
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
+
+        await expect(manager.onUseSetupURI(UserMode.Unknown)).resolves.toBe(true);
+        expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ remoteType: REMOTE_MINIO }), UserMode.Unknown);
+    });
 });
 
 describe("plaintext receipt configuration", () => {
@@ -1192,45 +918,4 @@ describe("plaintext receipt configuration", () => {
         expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
         expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
     });
-
-    it.each([true, false])(
-        "retains the internal Metadata warning when both preferences change (accepted: %s)",
-        async (accept) => {
-            const { manager, setting, dialogManager, core } = createSetupManager();
-            const current = Object.assign(setting.currentSettings(), {
-                encrypt: true,
-                encryptInternalMetadata: false,
-                acceptUnencryptedContent: false,
-                remoteType: REMOTE_COUCHDB,
-            });
-            dialogManager.openWithExplicitCancel.mockResolvedValue({
-                ...current,
-                encryptInternalMetadata: true,
-                acceptUnencryptedContent: true,
-            });
-            const ask = vi.fn(async (_message: string, choices: string[]) => (accept ? choices[0] : "Cancel"));
-            core.confirm = { askSelectStringDialogue: ask };
-            const apply = vi.spyOn(setting, "applyPartial").mockImplementation(async (partial) => {
-                Object.assign(setting.settings, partial);
-            });
-
-            await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(accept);
-
-            expect(ask).toHaveBeenCalledOnce();
-            expect(ask.mock.calls[0]![0]).toContain("currently running LiveSync");
-            expect(apply).toHaveBeenCalledTimes(accept ? 1 : 0);
-            if (accept) {
-                expect(apply.mock.calls[0]![0]).toEqual(
-                    expect.objectContaining({
-                        encryptInternalMetadata: true,
-                        acceptUnencryptedContent: true,
-                    })
-                );
-                expect(setting.currentSettings().encryptInternalMetadata).toBe(true);
-                expect((setting.currentSettings() as any).acceptUnencryptedContent).toBe(true);
-            }
-            expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
-            expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
-        }
-    );
 });

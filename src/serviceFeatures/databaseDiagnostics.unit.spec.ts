@@ -259,54 +259,6 @@ describe("database diagnostic host composition", () => {
         expect(report.errors.some((error: { source: string }) => error.source === "remote")).toBe(false);
     });
 
-    it("logs cumulative HTTP dispatch, failure, and duration counters for remote inspection", async () => {
-        const log = vi.spyOn(console, "log").mockImplementation(() => {});
-
-        try {
-            const nonOk = fixture();
-            nonOk.settings.remoteType = REMOTE_COUCHDB;
-            nonOk.settings.couchDB_DBNAME = "private-database";
-            nonOk.settings.useRequestAPI = true;
-            nonOk.fetch.mockImplementation(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 2));
-                return { ok: false, status: 503 } as Response;
-            });
-            await runDatabaseDiagnostic(nonOk.host, "integrity", "pseudonym");
-
-            const thrown = fixture();
-            thrown.settings.remoteType = REMOTE_COUCHDB;
-            thrown.settings.couchDB_DBNAME = "private-database";
-            thrown.settings.useRequestAPI = true;
-            thrown.fetch.mockRejectedValue(new Error("simulated diagnostic request failure"));
-            await runDatabaseDiagnostic(thrown.host, "integrity", "pseudonym");
-
-            const messages = log.mock.calls.map(([message]) => String(message));
-            const inspectionLogs = messages.filter((message) => message.includes("Database integrity inspection:"));
-            expect(inspectionLogs.length).toBeGreaterThan(0);
-            const inspectionEvents = inspectionLogs.map((message) => {
-                const json = message.slice(message.indexOf("{"));
-                return JSON.parse(json);
-            });
-            expect(inspectionEvents.some((event) => event.httpRequests > 0)).toBe(true);
-            expect(inspectionEvents.some((event) => event.httpFailedRequests > 0)).toBe(true);
-            expect(inspectionEvents.every((event) => typeof event.httpRequestDurationMs === "number")).toBe(true);
-
-            const summaries = messages.filter((message) => message.includes("Database integrity report:"));
-            expect(summaries).toHaveLength(2);
-            for (const [index, summary] of summaries.entries()) {
-                const match = /httpRequests=(\d+), httpFailedRequests=(\d+), httpRequestDurationMs=(\d+)/.exec(summary);
-                expect(match).not.toBeNull();
-                const data = index === 0 ? nonOk : thrown;
-                expect(Number(match![1])).toBe(data.fetch.mock.calls.length);
-                expect(Number(match![2])).toBe(data.fetch.mock.calls.length);
-                expect(Number(match![3])).toBeGreaterThanOrEqual(0);
-                if (index === 0) expect(Number(match![3])).toBeGreaterThan(0);
-            }
-        } finally {
-            log.mockRestore();
-        }
-    });
-
     it("includes names only when requested and never includes credentials or file contents", async () => {
         const data = fixture();
         const result = await runDatabaseDiagnostic(data.host, "usage", "original");

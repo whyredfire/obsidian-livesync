@@ -3,7 +3,14 @@ import { VERSIONING_DOCID, type EntryDoc } from "@vrtmrz/livesync-commonlib/comp
 import { EVENT_SETTING_SAVED } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
 import { describe, expect, it, vi } from "vitest";
 import { EVENT_APPLICATION_READY, eventHub } from "@/common/events";
-import { useReplicationFeature } from "./index";
+import { createReplicationFeature } from "./index";
+
+/** Compose and register the replication feature, returning its recovery view (test helper). */
+function useReplicationFeature(core: Parameters<typeof createReplicationFeature>[0]) {
+    const feature = createReplicationFeature(core);
+    feature.register();
+    return feature.recovery;
+}
 
 type ParseHandler = (documents: PouchDB.Core.ExistingDocument<EntryDoc>[]) => Promise<boolean>;
 

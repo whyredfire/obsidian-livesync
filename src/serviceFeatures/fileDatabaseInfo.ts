@@ -1,18 +1,16 @@
 import { $msg } from "@/common/translation";
-import type PouchDB from "pouchdb-core";
 import type {
     FilePath,
     FilePathWithPrefix,
     LoadedEntry,
     ObsidianLiveSyncSettings,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { getFileRegExp } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import { isNotFoundError } from "@vrtmrz/livesync-commonlib/compat/common/utils.doc";
-import { ICHeader, ICXHeader, PSCHeader } from "@vrtmrz/livesync-commonlib/compat/common/models/fileaccess.const";
+import { ICHeader } from "@vrtmrz/livesync-commonlib/compat/common/models/fileaccess.const";
 import type { StorageAccess } from "@vrtmrz/livesync-commonlib/compat/interfaces/StorageAccess";
 import type { LiveSyncLocalDB } from "@vrtmrz/livesync-commonlib/compat/pouchdb/LiveSyncLocalDB";
 import type { IPathService, IUIService } from "@vrtmrz/livesync-commonlib/compat/services/base/IService";
-import { addPrefix, stripAllPrefixes } from "@vrtmrz/livesync-commonlib/compat/string_and_binary/path";
+import { addPrefix } from "@vrtmrz/livesync-commonlib/compat/string_and_binary/path";
 
 type DatabaseMeta = LoadedEntry & {
     _rawStorageType: string | null;
@@ -414,35 +412,6 @@ export async function inspectFileDatabaseInfo(
     return report;
 }
 
-export async function readFileDatabaseRevisionLocally(
-    core: FileDatabaseInfoCore,
-    path: string,
-    revision: string
-): Promise<LoadedEntry | false> {
-    const databasePath = toDatabasePath(path);
-    const meta = await getLocalDatabaseMeta(core, databasePath, {
-        rev: revision,
-        revs: true,
-        revs_info: true,
-    });
-    if (!meta) {
-        return false;
-    }
-    const info = await collectRevisionDatabaseInfo(core, meta, false);
-    if (info.deleted || !info.contentAvailableLocally) {
-        return false;
-    }
-    return await core.localDatabase.getDBEntryFromMeta(meta, false, false);
-}
-
-export async function retryReadFileDatabaseRevision(
-    core: FileDatabaseInfoCore,
-    path: string,
-    revision: string
-): Promise<LoadedEntry | false> {
-    return await core.localDatabase.getDBEntry(toDatabasePath(path), { rev: revision }, false, true, true);
-}
-
 export async function buildFileDatabaseInfoReport(core: FileDatabaseInfoCore, path: string): Promise<string> {
     const report = await inspectFileDatabaseInfo(core, path);
     return `${$msg(REPORT_WARNING)}
@@ -458,39 +427,4 @@ export async function copyFileDatabaseInfo(core: FileDatabaseInfoCore, path: str
         $msg("Database information for ${FILE}", { FILE: path }),
         report
     );
-}
-
-export async function collectFileDatabaseInfoPaths(core: FileDatabaseInfoCore): Promise<string[]> {
-    const ignorePatterns = getFileRegExp(core.settings, "syncInternalFilesIgnorePatterns");
-    const targetPatterns = getFileRegExp(core.settings, "syncInternalFilesTargetPatterns");
-    // These names seed a chooser or inspection; per-entry reads establish current
-    // state before offering actions. Hidden-file mode keeps its separate listing scope.
-    const storagePaths = core.settings.syncInternalFiles
-        ? await core.storageAccess.getFilesIncludeHidden("/", targetPatterns, ignorePatterns)
-        : await core.storageAccess.getFileNames();
-    const databasePaths: string[] = [];
-
-    for await (const entry of core.localDatabase.findAllDocs()) {
-        const prefixedPath = entry.path;
-        if (prefixedPath.startsWith(ICXHeader) || prefixedPath.startsWith(PSCHeader)) {
-            continue;
-        }
-        if (!core.settings.syncInternalFiles && prefixedPath.startsWith(ICHeader)) {
-            continue;
-        }
-        databasePaths.push(stripAllPrefixes(prefixedPath));
-    }
-
-    return [...new Set([...storagePaths, ...databasePaths])].sort((left, right) =>
-        left < right ? -1 : left > right ? 1 : 0
-    );
-}
-
-export async function chooseAndCopyFileDatabaseInfo(core: FileDatabaseInfoCore): Promise<boolean> {
-    const paths = await collectFileDatabaseInfoPaths(core);
-    const selected = await core.services.UI.confirm.askSelectString($msg("Choose a file to inspect"), paths);
-    if (!selected) {
-        return false;
-    }
-    return await copyFileDatabaseInfo(core, selected);
 }

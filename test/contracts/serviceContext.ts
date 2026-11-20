@@ -31,11 +31,6 @@ export type ServiceContextResult = {
     receivedEvents: string[];
 };
 
-export type ServiceCompositionResult = {
-    hubUsesExpectedContext: boolean;
-    servicesUsingExpectedContext: Record<ServiceContextMember, boolean>;
-};
-
 /**
  * Observe the host-neutral results promised by ServiceContextContract.
  *
@@ -56,22 +51,5 @@ export function observeServiceContext(
     return {
         translation: context.translate(translationKey),
         receivedEvents,
-    };
-}
-
-/**
- * Inspect whether a Service Hub and all public services preserve one exact
- * context object instead of silently constructing or substituting another.
- */
-export function observeServiceComposition(
-    hub: { readonly context: ServiceContextContract },
-    expectedContext: ServiceContextContract
-): ServiceCompositionResult {
-    const members = hub as unknown as Record<ServiceContextMember, { readonly context: ServiceContextContract }>;
-    return {
-        hubUsesExpectedContext: hub.context === expectedContext,
-        servicesUsingExpectedContext: Object.fromEntries(
-            SERVICE_CONTEXT_MEMBERS.map((member) => [member, members[member].context === expectedContext])
-        ) as Record<ServiceContextMember, boolean>,
     };
 }

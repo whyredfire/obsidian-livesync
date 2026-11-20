@@ -8,7 +8,7 @@ import { EVENT_APPLICATION_READY, EVENT_VAULT_REFLECTION_FAILED } from "@/common
 import { createAutomaticReplicationTriggers } from "./automaticTriggers";
 import { createCentralCompatibilityRecovery } from "./centralCompatibilityRecovery";
 import { createOnlineReplicationPreflight, createSecuritySeedPreflight } from "./preflight";
-import { ReplicateResultProcessor, type ReflectionRecoveryView } from "./ReplicateResultProcessor";
+import { ReplicateResultProcessor } from "./ReplicateResultProcessor";
 import { LOG_LEVEL_VERBOSE } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { createInstanceLogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
 import {
@@ -220,13 +220,4 @@ export function createReplicationFeature<TContext extends ServiceContext, TComma
         }
     };
     return { recovery: resultProcessor.recovery, register };
-}
-
-/** Compose directly when the host does not need the recovery view during its earlier UI composition. */
-export function useReplicationFeature<TContext extends ServiceContext, TCommands extends IMinimumLiveSyncCommands>(
-    core: LiveSyncBaseCore<TContext, TCommands>
-): ReflectionRecoveryView {
-    const feature = createReplicationFeature(core);
-    feature.register();
-    return feature.recovery;
 }

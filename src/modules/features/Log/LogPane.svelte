@@ -3,7 +3,7 @@
     import { logMessages } from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/stores";
     import { reactive, type ReactiveInstance } from "octagonal-wheels/dataobject/reactive";
     import { Logger } from "@vrtmrz/livesync-commonlib/compat/common/logger";
-    import { $msg as msg, currentLang as lang } from "@/common/translation";
+    import { $msg as msg } from "@/common/translation";
     import { compatGlobal } from "@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions";
 
     let unsubscribe: () => void;
@@ -30,7 +30,7 @@
         const _logMessages = reactive(() => logMessages.value);
         updateLog(_logMessages);
         _logMessages.onChanged(updateLog);
-        Logger(msg("logPane.logWindowOpened", {}, lang));
+        Logger(msg("logPane.logWindowOpened"));
         unsubscribe = () => _logMessages.offChanged(updateLog);
     });
     onDestroy(() => {
@@ -43,23 +43,23 @@
 </script>
 
 <div class="logpane">
-    <!-- <h1>{msg("logPane.title", {}, lang)}</h1> -->
+    <!-- <h1>{msg("logPane.title")}</h1> -->
     <div class="control">
         <div class="row">
             <label>
                 <input type="checkbox" bind:checked={wrapRight} />
-                <span>{msg("logPane.wrap", {}, lang)}</span>
+                <span>{msg("logPane.wrap")}</span>
             </label>
             <label>
                 <input type="checkbox" bind:checked={autoScroll} />
-                <span>{msg("logPane.autoScroll", {}, lang)}</span>
+                <span>{msg("logPane.autoScroll")}</span>
             </label>
             <label>
                 <input type="checkbox" bind:checked={suspended} />
-                <span>{msg("logPane.pause", {}, lang)}</span>
+                <span>{msg("logPane.pause")}</span>
             </label>
             <span class="spacer"></span>
-            <button onclick={() => closeDialogue()}>{msg("Close", {}, lang)}</button>
+            <button onclick={() => closeDialogue()}>{msg("Close")}</button>
         </div>
     </div>
     <div class="log" bind:this={scroll}>

@@ -4,72 +4,12 @@ import type {
     RemoteConnectionProbe,
     RemoteConnectionProbeOptions,
 } from "@vrtmrz/livesync-commonlib/replication";
-import {
-    LiveSyncCouchDBReplicator,
-    type LiveSyncCouchDBReplicatorEnv,
-} from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
-import { inspectDatabasePathIdentity } from "@vrtmrz/livesync-commonlib/replication";
-import { LOG_LEVEL_NOTICE, Logger } from "@vrtmrz/livesync-commonlib/compat/common/logger";
+import { type LiveSyncCouchDBReplicatorEnv } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
 import { LiveSyncJournalReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/journal/LiveSyncJournalReplicator";
 import { createReplicatorDisposer, snapshotRemoteSettings } from "./shared";
 
 /** Host environment sufficient to construct either central connection probe. */
 export type ConnectionResourceHost = LiveSyncCouchDBReplicatorEnv;
-
-function createCouchDBConnectionProbe(
-    replicator: LiveSyncCouchDBReplicator,
-    snapshot: RemoteDBSettings,
-    host: ConnectionResourceHost
-): RemoteConnectionProbe {
-    const dispose = createReplicatorDisposer(replicator);
-    return {
-        check: async (options: RemoteConnectionProbeOptions = {}) => {
-            const connection = await replicator.connectRemoteCouchDBWithSetting(
-                snapshot,
-                replicator.isMobile(),
-                options.createIfMissing ?? true,
-                false
-            );
-            if (typeof connection === "string") {
-                if (options.showResult) {
-                    Logger(
-                        host.services.context.translate("liveSyncReplicator.couldNotConnectTo", {
-                            uri: snapshot.couchDB_URI,
-                            name: snapshot.couchDB_DBNAME,
-                            db: connection,
-                        }),
-                        LOG_LEVEL_NOTICE
-                    );
-                }
-                return { ok: false, reason: connection };
-            }
-            try {
-                if (options.showResult) {
-                    Logger(`Connected to ${connection.info.db_name} successfully`, LOG_LEVEL_NOTICE);
-                }
-                return { ok: true };
-            } finally {
-                await connection.close();
-            }
-        },
-        inspectPathIdentity: async () => {
-            const connection = await replicator.connectRemoteCouchDBWithSetting(
-                { ...snapshot, encrypt: false },
-                replicator.isMobile(),
-                false,
-                false
-            );
-            if (typeof connection === "string") throw new Error(connection);
-            try {
-                return await inspectDatabasePathIdentity(connection.db);
-            } finally {
-                await connection.close();
-            }
-        },
-        getStatus: () => replicator.getRemoteStatus(snapshot),
-        dispose,
-    };
-}
 
 function createObjectStorageConnectionProbe(
     replicator: LiveSyncJournalReplicator,
@@ -88,21 +28,6 @@ function createObjectStorageConnectionProbe(
         inspectPathIdentity: () => replicator.inspectRemotePathIdentity(snapshot),
         getStatus: () => replicator.getRemoteStatus(snapshot),
         dispose,
-    };
-}
-
-/**
- * Build an unpublished CouchDB connection probe for one host.
- *
- * The probe owns both its concrete Replicator and each connection it opens. It
- * never publishes that Replicator as the active provider instance. A caller
- * may request the established result Notice explicitly; ordinary probes remain
- * silent.
- */
-export function createCouchDBConnectionProbeFactory(host: ConnectionResourceHost): ConnectionProbeFactory {
-    return (setting) => {
-        const snapshot = snapshotRemoteSettings(setting);
-        return Promise.resolve(createCouchDBConnectionProbe(new LiveSyncCouchDBReplicator(host), snapshot, host));
     };
 }
 

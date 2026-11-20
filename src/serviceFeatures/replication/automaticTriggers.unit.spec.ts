@@ -18,14 +18,8 @@ vi.mock("octagonal-wheels/concurrency/task", () => taskMocks);
 import {
     createConflictResolutionOperations,
     type ConflictResolutionOperationsDependencies,
-} from "@/serviceFeatures/conflictResolution";
+} from "@/serviceFeatures/conflictResolution/operations";
 import { ModuleObsidianEvents } from "@/modules/essentialObsidian/ModuleObsidianEvents";
-import {
-    createReplicationSchedulingContext,
-    realiseReplicationScheduling,
-    resumeReplicationScheduling,
-    runPeriodicReplication,
-} from "@/serviceFeatures/replicationScheduling";
 import { createAutomaticReplicationTriggers } from "./automaticTriggers";
 
 function createApi() {
@@ -93,38 +87,6 @@ describe("automatic replication triggers while P2P is active", () => {
     afterEach(() => {
         eventHub.offAll();
         taskMocks.scheduleTask.mockClear();
-    });
-
-    it("keeps periodic synchronisation on the provider-independent replication boundary", async () => {
-        const replicateUnattended = vi.fn(async () => ({ status: "completed" as const }));
-        const services = {
-            API: createApi(),
-            control: { hasUnloaded: vi.fn(() => false) },
-            replication: { replicateUnattended },
-        };
-        const core = {
-            _services: services,
-            services,
-            settings: p2pSettings({ periodicReplication: true, syncOnStart: false }),
-        } as any;
-        const context = createReplicationSchedulingContext({
-            isReady: vi.fn(() => true),
-            isSuspended: vi.fn(() => false),
-            currentSettings: vi.fn(() => core.settings),
-            replicateUnattended,
-            startContinuous: vi.fn(async () => ({ status: "completed" as const })),
-            timer: { enable: vi.fn(), disable: vi.fn() },
-            log: vi.fn(),
-        });
-
-        resumeReplicationScheduling(context);
-        await runPeriodicReplication(context);
-
-        expect(replicateUnattended).toHaveBeenCalledOnce();
-        expect(replicateUnattended).toHaveBeenCalledWith({
-            trigger: "periodic",
-            interaction: NO_INTERACTION,
-        });
     });
 
     it("keeps database-save synchronisation on the event replication boundary", async () => {
@@ -262,86 +224,5 @@ describe("automatic replication triggers while P2P is active", () => {
             interaction: NO_INTERACTION,
         });
         expect(queueCheckFor).toHaveBeenCalledWith(path);
-    });
-});
-
-describe("recurring replication scheduling precedence", () => {
-    afterEach(() => {
-        eventHub.offAll();
-    });
-
-    function createRecurringSchedulingHarness() {
-        let resolveContinuous!: (
-            outcome: { status: "completed" } | { status: "blocked"; reason: "capability-not-applicable" }
-        ) => void;
-        const startContinuous = vi.fn(
-            () =>
-                new Promise<{ status: "completed" } | { status: "blocked"; reason: "capability-not-applicable" }>(
-                    (resolve) => {
-                        resolveContinuous = resolve;
-                    }
-                )
-        );
-        const API = createApi();
-        const settings = {
-            ...DEFAULT_SETTINGS,
-            isConfigured: true,
-            liveSync: true,
-            syncOnStart: true,
-            periodicReplication: true,
-            periodicReplicationInterval: 60,
-        };
-        const context = createReplicationSchedulingContext({
-            isReady: vi.fn(() => true),
-            isSuspended: vi.fn(() => false),
-            currentSettings: vi.fn(() => settings),
-            startContinuous,
-            replicateUnattended: vi.fn(async () => ({ status: "completed" as const })),
-            timer: {
-                enable: (interval) => {
-                    API.setInterval(vi.fn(), interval);
-                },
-                disable: () => {
-                    API.clearInterval(0);
-                },
-            },
-            log: vi.fn(),
-        });
-
-        return {
-            API,
-            resolveContinuous: (
-                outcome: { status: "completed" } | { status: "blocked"; reason: "capability-not-applicable" }
-            ) => resolveContinuous(outcome),
-            resume: async () => {
-                resumeReplicationScheduling(context);
-                await Promise.resolve();
-            },
-            realiseSettings: async () => {
-                realiseReplicationScheduling(context);
-                await Promise.resolve();
-            },
-        };
-    }
-
-    it("does not enable the generic periodic timer while Continuous owns recurring synchronisation", async () => {
-        const harness = createRecurringSchedulingHarness();
-
-        await harness.resume();
-        await harness.realiseSettings();
-
-        expect(harness.API.setInterval).not.toHaveBeenCalled();
-        harness.resolveContinuous({ status: "completed" });
-        await vi.waitFor(() => expect(harness.API.setInterval).not.toHaveBeenCalled());
-    });
-
-    it("restores the generic periodic timer when Continuous is not applicable", async () => {
-        const harness = createRecurringSchedulingHarness();
-
-        await harness.resume();
-        await harness.realiseSettings();
-        harness.resolveContinuous({ status: "blocked", reason: "capability-not-applicable" });
-
-        await vi.waitFor(() => expect(harness.API.setInterval).toHaveBeenCalledOnce());
     });
 });

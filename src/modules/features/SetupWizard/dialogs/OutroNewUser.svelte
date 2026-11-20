@@ -19,65 +19,39 @@
         getInitialData?: () => OutroApplyInitialData | undefined;
     };
     const { setResult, getInitialData }: Props = $props();
-    const isP2P = $derived(getInitialData?.()?.isP2P === true);
     const enableUnencryptedContent = $derived(getInitialData?.()?.enableUnencryptedContent === true);
     // let userType = $state<OutroNewUserResultType>(TYPE_CANCELLED);
 </script>
 
-{#if isP2P}
-    <DialogHeader title={msg("Ui.SetupWizard.OutroNewP2PUser.Title")} />
-    <Guidance>
-        <p>{msg("Ui.SetupWizard.OutroNewP2PUser.GuidancePrimary")}</p>
-        <p>
-            <strong>{msg("Ui.SetupWizard.OutroNewP2PUser.Important")}</strong>
-            <br />
-            {msg("Ui.SetupWizard.OutroNewP2PUser.GuidanceNotice")}
-        </p>
-        {#if enableUnencryptedContent}
-            <PlaintextReceiptWarning />
-        {/if}
-    </Guidance>
-    <Instruction>
-        <Question>{msg("Ui.SetupWizard.OutroNewP2PUser.Question")}</Question>
-    </Instruction>
-    <UserDecisions>
-        <Decision
-            title={msg("Ui.SetupWizard.OutroNewP2PUser.Proceed")}
-            important={true}
-            commit={() => setResult(TYPE_APPLY)}
-        />
-        <Decision title={msg("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
-    </UserDecisions>
-{:else}
-    <DialogHeader title={msg("Setup Complete: Preparing to Initialise Server")} />
-    <Guidance>
-        <p>
-            {msg("The connection to the server has been configured successfully. As the next step,")} <strong
-                >{msg(
-                    "the synchronisation data on the server will be built based on the current data on this device."
-                )}</strong
-            >
-        </p>
-        <p>
-            <strong>{msg("IMPORTANT")}</strong>
-            <br />
-            {msg(
-                "After restarting, the data on this device will be uploaded to the server as the 'master copy'. Please be aware that any unintended data currently on the server will be completely overwritten."
-            )}
-        </p>
-        {#if enableUnencryptedContent}
-            <PlaintextReceiptWarning />
-        {/if}
-    </Guidance>
-    <Instruction>
-        <Question>{msg("Please select the button below to restart and proceed to the final confirmation.")}</Question>
-    </Instruction>
-    <UserDecisions>
-        <Decision
-            title={msg("Restart and Initialise Server")}
-            important={true}
-            commit={() => setResult(TYPE_APPLY)}
-        />
-        <Decision title={msg("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
-    </UserDecisions>
-{/if}
+<DialogHeader title={msg("Setup Complete: Preparing to Initialise Server")} />
+<Guidance>
+    <p>
+        {msg("The connection to the server has been configured successfully. As the next step,")} <strong
+            >{msg(
+                "the synchronisation data on the server will be built based on the current data on this device."
+            )}</strong
+        >
+    </p>
+    <p>
+        <strong>{msg("IMPORTANT")}</strong>
+        <br />
+        {msg(
+            "After restarting, the data on this device will be uploaded to the server as the 'master copy'. Please be aware that any unintended data currently on the server will be completely overwritten."
+        )}
+    </p>
+    <p>{msg("When the upload has finished, turn on Automatic sync in the Red Sync settings.")}</p>
+    {#if enableUnencryptedContent}
+        <PlaintextReceiptWarning />
+    {/if}
+</Guidance>
+<Instruction>
+    <Question>{msg("Please select the button below to restart and proceed to the final confirmation.")}</Question>
+</Instruction>
+<UserDecisions>
+    <Decision
+        title={msg("Restart and Initialise Server")}
+        important={true}
+        commit={() => setResult(TYPE_APPLY)}
+    />
+    <Decision title={msg("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
+</UserDecisions>

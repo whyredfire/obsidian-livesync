@@ -1,9 +1,6 @@
 import type { RemoteDBSettings, RemotePreferredTweakResult } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import type { PreferredTweakProbe, PreferredTweakProbeFactory } from "@vrtmrz/livesync-commonlib/replication";
-import {
-    LiveSyncCouchDBReplicator,
-    type LiveSyncCouchDBReplicatorEnv,
-} from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
+import { type LiveSyncCouchDBReplicatorEnv } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
 import { LiveSyncJournalReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/journal/LiveSyncJournalReplicator";
 import { createReplicatorDisposer, snapshotRemoteSettings, type ResourceReplicator } from "./shared";
 
@@ -21,14 +18,6 @@ function createPreferredTweakProbe(
     return {
         read: () => replicator.getRemotePreferredTweakValues(snapshot),
         dispose: createReplicatorDisposer(replicator),
-    };
-}
-
-/** Build an unpublished, independently disposed CouchDB preferred-tweak probe. */
-export function createCouchDBPreferredTweakProbeFactory(host: PreferredTweakResourceHost): PreferredTweakProbeFactory {
-    return (setting) => {
-        const snapshot = snapshotRemoteSettings(setting);
-        return Promise.resolve(createPreferredTweakProbe(new LiveSyncCouchDBReplicator(host), snapshot));
     };
 }
 

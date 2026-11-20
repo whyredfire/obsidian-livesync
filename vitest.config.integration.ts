@@ -1,8 +1,7 @@
 /**
  * @file vitest.config.integration.ts
- * @description Configuration for running database integration tests in Node.js against a real CouchDB instance
- * (e.g. testing streaming changes, database connectivity, and replication status checks).
- * This is executed via `npm run test:integration` during development and is run in the GitHub Actions `unit-ci` workflow.
+ * @description Configuration for integration tests which use a real (in-memory) PouchDB database.
+ * Run with `npm run test:integration`.
  */
 import { defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vitest.config.common";

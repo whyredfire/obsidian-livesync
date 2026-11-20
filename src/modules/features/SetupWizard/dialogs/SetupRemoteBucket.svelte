@@ -4,7 +4,6 @@
     import Decision from "@/modules/services/LiveSyncUI/components/Decision.svelte";
     import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
     import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
-    import ExtraItems from "@/modules/services/LiveSyncUI/components/ExtraItems.svelte";
     import InputRow from "@/modules/services/LiveSyncUI/components/InputRow.svelte";
     import Password from "@/modules/services/LiveSyncUI/components/Password.svelte";
     import {
@@ -22,6 +21,7 @@
     import { $msg as translateMessage } from "@/common/translation";
     import { withOwnedRemoteResource } from "@/common/core/replication/ownedRemoteResource";
     import { REMOTE_RESOURCE_KINDS } from "@vrtmrz/livesync-commonlib/replication";
+    import { R2_FIXED_OPTIONS } from "@/common/core/settings/newVaultSettings";
 
     const default_setting = pickBucketSyncSettings(DEFAULT_SETTINGS);
 
@@ -56,7 +56,6 @@
             syncSetting.secretKey.trim() !== "" &&
             syncSetting.bucket.trim() !== "" &&
             syncSetting.endpoint.trim() !== "" &&
-            syncSetting.region.trim() !== "" &&
             isEndpointSupplied
         );
     });
@@ -64,6 +63,7 @@
     function generateSetting() {
         const connSetting: BucketSyncSetting = {
             ...syncSetting,
+            ...R2_FIXED_OPTIONS,
         };
         const trialSettings: BucketSyncSetting = {
             ...connSetting,
@@ -130,17 +130,17 @@
     }
 </script>
 
-<DialogHeader title={translateMessage("S3/MinIO/R2 Configuration")} />
-<Guidance
-    >{translateMessage(
-        "Please enter the details required to connect to your S3/MinIO/R2 compatible object storage service."
-    )}</Guidance
->
+<DialogHeader title={translateMessage("Cloudflare R2 Bucket")} />
+<Guidance>
+    {translateMessage(
+        "Enter the S3 API credentials of your R2 bucket. You can create an API token with Object Read & Write permission in the Cloudflare dashboard under R2 > Manage API tokens."
+    )}
+</Guidance>
 <InputRow label={translateMessage("Endpoint URL")}>
     <input
         type="text"
         name="s3-endpoint"
-        placeholder="https://s3.amazonaws.com"
+        placeholder="https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
@@ -150,9 +150,8 @@
     />
 </InputRow>
 <InfoNote warning visible={isEndpointInsecure}
-    >{translateMessage("We can use only Secure (HTTPS) connections on Obsidian Mobile.")}</InfoNote
+    >{translateMessage("Only secure (HTTPS) connections can be used on Obsidian Mobile.")}</InfoNote
 >
-
 <InputRow label={translateMessage("Access Key ID")}>
     <input
         type="text"
@@ -165,7 +164,6 @@
         bind:value={syncSetting.accessKey}
     />
 </InputRow>
-
 <InputRow label={translateMessage("Secret Access Key")}>
     <Password
         name="s3-secret-access-key"
@@ -186,26 +184,11 @@
         bind:value={syncSetting.bucket}
     /></InputRow
 >
-<InputRow label={translateMessage("Region")}>
-    <input
-        type="text"
-        name="s3-region"
-        placeholder={translateMessage("Enter your Region (e.g., us-east-1, auto for R2)")}
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-        bind:value={syncSetting.region}
-    />
-</InputRow>
-<InputRow label={translateMessage("Use Path-Style Access")}>
-    <input type="checkbox" name="s3-use-path-style" bind:checked={syncSetting.forcePathStyle} />
-</InputRow>
-
 <InputRow label={translateMessage("Folder Prefix")}>
     <input
         type="text"
         name="s3-folder-prefix"
-        placeholder={translateMessage("Enter a folder prefix (optional)")}
+        placeholder={translateMessage("Optional, e.g. my-vault/")}
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
@@ -213,31 +196,8 @@
     />
 </InputRow>
 <InfoNote>
-    {translateMessage(
-        "If you want to store the data in a specific folder within the bucket, you can specify a folder prefix here. Otherwise, leave it blank to store data at the root of the bucket."
-    )}
+    {translateMessage("Use a folder prefix to keep several vaults in one bucket. Leave it blank to use the bucket root.")}
 </InfoNote>
-<InputRow label={translateMessage("Use internal API")}>
-    <input type="checkbox" name="s3-use-internal-api" bind:checked={syncSetting.useCustomRequestHandler} />
-</InputRow>
-<InfoNote>
-    {translateMessage(
-        "If you cannot avoid CORS issues, you might want to try this option. It uses Obsidian's internal API to communicate with the S3 server. Not compliant with web standards, but works. Note that this might break in future Obsidian versions."
-    )}
-</InfoNote>
-
-<ExtraItems title={translateMessage("Advanced Settings")}>
-    <InputRow label={translateMessage("Custom Headers")}>
-        <textarea
-            name="bucket-custom-headers"
-            placeholder="e.g., x-example-header: value\n another-header: value2"
-            bind:value={syncSetting.bucketCustomHeaders}
-            autocapitalize="off"
-            spellcheck="false"
-            rows="4"
-        ></textarea>
-    </InputRow>
-</ExtraItems>
 
 <InfoNote error visible={error !== ""}>
     {error}

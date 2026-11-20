@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { createServiceContext } from "@vrtmrz/livesync-commonlib/context";
-import { DEFAULT_SETTINGS, type ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { EVENT_SETTING_SAVED } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
-import { EVENT_SYNC_GUARD_PREFERENCES_CHANGED } from "@/common/events.ts";
+import {
+    DEFAULT_SETTINGS,
+    REMOTE_COUCHDB,
+    REMOTE_MINIO,
+    type ObsidianLiveSyncSettings,
+} from "@vrtmrz/livesync-commonlib/compat/common/types";
 import type { IAPIService } from "@vrtmrz/livesync-commonlib/compat/services/base/IService";
 import { MemoryValueStore } from "@vrtmrz/value-store";
 import type { ObsidianServiceContext } from "@/modules/services/ObsidianServiceContext";
 import { normaliseObsidianSettingsData } from "./ObsidianSettingService.ts";
-import { getSyncGuardSettings, ObsidianSettingService, setSyncGuardSetting } from "./ObsidianSettingService.ts";
+import { ObsidianSettingService } from "./ObsidianSettingService.ts";
 
 function createSettingService(
     vaultName: string,
@@ -62,101 +65,36 @@ describe("normaliseObsidianSettingsData", () => {
     });
 });
 
-describe("SyncGuard device-local settings", () => {
-    const savedSettings = { ...DEFAULT_SETTINGS, isConfigured: true, additionalSuffixOfDatabaseName: "" };
+describe("ObsidianSettingService", () => {
+    it("enforces the Red Sync remote and synchronisation behaviour when adjusting settings", async () => {
+        const service = createSettingService("vault", new MemoryValueStore());
+        const adjusted = await service.adjustSettings({
+            ...DEFAULT_SETTINGS,
+            remoteType: REMOTE_COUCHDB,
+            liveSync: true,
+            syncInternalFiles: true,
+            region: "us-east-1",
+            syncOnSave: false,
+        } as ObsidianLiveSyncSettings);
 
-    it("loads safe defaults when no local values were saved", async () => {
-        const setting = createSettingService("first-vault", new MemoryValueStore(), savedSettings);
-
-        await setting.loadSettings();
-
-        expect(getSyncGuardSettings(setting)).toEqual({ syncGuardEnabled: false, syncGuardMinimumFiles: 20 });
+        expect(adjusted).toMatchObject({
+            remoteType: REMOTE_MINIO,
+            liveSync: false,
+            syncInternalFiles: false,
+            region: "auto",
+            useCustomRequestHandler: true,
+        });
+        // The automatic triggers remain under the user's control.
+        expect(adjusted.syncOnSave).toBe(false);
     });
 
-    it("migrates preferences stored by earlier builds and excludes them from plugin data", async () => {
-        const localValues = new MemoryValueStore();
-        const saveData = vi.fn(async (_data: unknown) => undefined);
-        const setting = createSettingService(
-            "first-vault",
-            localValues,
-            { ...savedSettings, syncGuardEnabled: true, syncGuardMinimumFiles: 7 },
-            saveData
-        );
+    it("saves settings through the plug-in without altering them", async () => {
+        const saveData = vi.fn(async (_settings: unknown) => undefined);
+        const service = createSettingService("vault", new MemoryValueStore(), undefined, saveData);
+        await service.loadSettings();
+        await service.saveSettingData();
 
-        await setting.loadSettings();
-        await setting.saveSettingData();
-
-        expect(getSyncGuardSettings(setting)).toEqual({ syncGuardEnabled: true, syncGuardMinimumFiles: 7 });
-        await expect(setting.config.getObject("syncGuardEnabled")).resolves.toBe(true);
-        await expect(setting.config.getObject("syncGuardMinimumFiles")).resolves.toBe(7);
-        expect(saveData.mock.lastCall?.[0]).not.toHaveProperty("syncGuardEnabled");
-        expect(saveData.mock.lastCall?.[0]).not.toHaveProperty("syncGuardMinimumFiles");
-    });
-
-    it("keeps existing device-local values authoritative over legacy plugin data", async () => {
-        const localValues = new MemoryValueStore();
-        const setting = createSettingService(
-            "first-vault",
-            localValues,
-            { ...savedSettings, syncGuardEnabled: true, syncGuardMinimumFiles: 5 }
-        );
-        await localValues.setObject("first-vault--syncGuardEnabled", false);
-        await localValues.setObject("first-vault--syncGuardMinimumFiles", 30);
-
-        await setting.loadSettings();
-
-        expect(getSyncGuardSettings(setting)).toEqual({ syncGuardEnabled: false, syncGuardMinimumFiles: 30 });
-    });
-
-    it("restores saved preferences after recreating the service", async () => {
-        const localValues = new MemoryValueStore();
-        const first = createSettingService("first-vault", localValues, savedSettings);
-        await first.loadSettings();
-        await setSyncGuardSetting(first, "syncGuardEnabled", true);
-        await setSyncGuardSetting(first, "syncGuardMinimumFiles", 12);
-
-        const reloaded = createSettingService("first-vault", localValues, savedSettings);
-        await reloaded.loadSettings();
-
-        expect(getSyncGuardSettings(reloaded)).toEqual({ syncGuardEnabled: true, syncGuardMinimumFiles: 12 });
-    });
-
-    it("rejects invalid file thresholds without changing local settings", async () => {
-        const setting = createSettingService("first-vault", new MemoryValueStore(), savedSettings);
-        await setting.loadSettings();
-        const storedBefore = await setting.config.getObject("syncGuardMinimumFiles");
-
-        for (const invalid of [0, -1, 1.5, NaN, Infinity]) {
-            await expect(setSyncGuardSetting(setting, "syncGuardMinimumFiles", invalid)).rejects.toThrow(RangeError);
-        }
-
-        expect(getSyncGuardSettings(setting).syncGuardMinimumFiles).toBe(20);
-        await expect(setting.config.getObject("syncGuardMinimumFiles")).resolves.toBe(storedBefore);
-    });
-
-    it("persists edits only in this Vault's device store and notifies the guard", async () => {
-        const localValues = new MemoryValueStore();
-        const saveData = vi.fn(async (_data: unknown) => undefined);
-        const first = createSettingService("first-vault", localValues, savedSettings, saveData);
-        const second = createSettingService("second-vault", localValues, savedSettings);
-        await first.loadSettings();
-        await second.loadSettings();
-        const initialSaveCount = saveData.mock.calls.length;
-        const changed = vi.fn();
-        const unrelatedReplicationSettingsSaved = vi.fn();
-        first.context.events.onEvent(EVENT_SYNC_GUARD_PREFERENCES_CHANGED, changed);
-        first.context.events.onEvent(EVENT_SETTING_SAVED, unrelatedReplicationSettingsSaved);
-
-        await setSyncGuardSetting(first, "syncGuardEnabled", true);
-        await setSyncGuardSetting(first, "syncGuardMinimumFiles", 8);
-        await setSyncGuardSetting(first, "syncGuardEnabled", true);
-
-        expect(getSyncGuardSettings(first)).toEqual({ syncGuardEnabled: true, syncGuardMinimumFiles: 8 });
-        expect(getSyncGuardSettings(second)).toEqual({ syncGuardEnabled: false, syncGuardMinimumFiles: 20 });
-        await expect(localValues.getObject("first-vault--syncGuardEnabled")).resolves.toBe(true);
-        await expect(localValues.getObject("first-vault--syncGuardMinimumFiles")).resolves.toBe(8);
-        expect(changed).toHaveBeenCalledTimes(2);
-        expect(unrelatedReplicationSettingsSaved).not.toHaveBeenCalled();
-        expect(saveData).toHaveBeenCalledTimes(initialSaveCount);
+        expect(saveData).toHaveBeenCalled();
+        expect(saveData.mock.calls[saveData.mock.calls.length - 1]?.[0]).toMatchObject({ remoteType: REMOTE_MINIO });
     });
 });

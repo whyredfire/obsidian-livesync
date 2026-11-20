@@ -8,7 +8,7 @@ import {
     FlagFilesHumanReadable,
     FlagFilesOriginal,
 } from "@vrtmrz/livesync-commonlib/compat/common/models/redflag.const";
-import { REMOTE_MINIO, REMOTE_P2P } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
+import { REMOTE_MINIO } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
 import {
     createFetchAllFlagHandler,
     createRebuildFlagHandler,
@@ -1091,20 +1091,6 @@ describe("Red Flag Feature", () => {
     });
 
     describe("Rebuild All Flag Handler", () => {
-        it("identifies P2P when opening the scheduled rebuild confirmation", async () => {
-            const host = createHostMock();
-            const log = createLoggerMock();
-            host.mocks.setting.settings.remoteType = REMOTE_P2P;
-            host.mocks.storageAccess.files.add(FlagFilesOriginal.REBUILD_ALL);
-            host.mocks.ui.dialogManager.openWithExplicitCancel.mockResolvedValueOnce("cancelled");
-
-            await createRebuildFlagHandler(host as any, log).handle();
-
-            expect(host.mocks.ui.dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(expect.anything(), {
-                isP2P: true,
-            });
-        });
-
         it("should detect rebuild all flag using original filename", async () => {
             const host = createHostMock();
             const log = createLoggerMock();
