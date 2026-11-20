@@ -99,3 +99,23 @@ export type SetupFormInitialData = {
 };
 
 export type SetupFormResultType = typeof TYPE_CANCELLED | "back" | { settings: ObsidianLiveSyncSettings };
+
+// Setup URI
+export type CreatedSetupURI = {
+    uri: string;
+    /** When the link stops working, or null when it has no time limit. */
+    expires: string | null;
+};
+export type CopySetupURIResultType = typeof TYPE_CANCELLED | "done";
+export type CopySetupURIInitialData = {
+    /** The end of the current time-bound window, or null when this device's clock is not valid. */
+    expires: string | null;
+    create(passphrase: string, timeBound: boolean): Promise<CreatedSetupURI>;
+};
+
+// Setup QR code
+export type ShowSetupQRResultType = typeof TYPE_CANCELLED | "done";
+export type ShowSetupQRInitialData = {
+    /** One SVG image, or several when the settings are split across codes. */
+    parts: string[];
+};

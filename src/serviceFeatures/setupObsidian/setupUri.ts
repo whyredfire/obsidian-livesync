@@ -1,110 +1,89 @@
 import { createCommandCheck } from "@vrtmrz/obsidian-plugin-kit/command";
-import { LOG_LEVEL_NOTICE, type ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import type { LogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
-import { createInstanceLogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
+import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import {
     encodeTimeBoundSetupURI,
     getTimeBoundSetupURIUsableUntil,
     isTimeBoundSetupURIUsableNow,
-    type TimeBoundSetupURIMode,
 } from "@vrtmrz/livesync-commonlib/setup-uri";
 import { EVENT_REQUEST_COPY_SETUP_URI } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
 import { fireAndForget } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import type { SetupFeatureHost } from "./types";
-
-export async function askEncryptingPassphrase(host: SetupFeatureHost): Promise<string | false> {
-    return await host.services.UI.confirm.askString(
-        "Encrypt your settings",
-        "The passphrase to encrypt the setup URI",
-        "",
-        true
-    );
-}
+import CopySetupURI from "@/modules/features/SetupWizard/dialogs/CopySetupURI.svelte";
+import type {
+    CopySetupURIInitialData,
+    CopySetupURIResultType,
+    CreatedSetupURI,
+} from "@/modules/features/SetupWizard/dialogs/setupDialogTypes";
 
 function formatWindowEnd(usableUntil: number): string {
     return new Intl.DateTimeFormat(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
         weekday: "short",
+        day: "numeric",
+        month: "short",
         hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
         timeZoneName: "short",
     }).format(new Date(usableUntil));
 }
 
-async function askSetupURIMode(
-    host: SetupFeatureHost
-): Promise<{ mode: TimeBoundSetupURIMode; usableUntil: number | null } | false> {
-    let usableUntil: number | null = null;
+/** The end of the current time-bound window, or undefined when the device clock cannot be trusted. */
+function currentWindowEnd(): number | undefined {
     try {
-        usableUntil = getTimeBoundSetupURIUsableUntil();
+        return getTimeBoundSetupURIUsableUntil();
     } catch {
-        // Compatible generation remains available when the device clock is invalid.
+        return undefined;
     }
-    const timeBound = "Time-bound";
-    const compatible = "Compatible (no time limit)";
-    const cancel = "Cancel";
-    const buttons = usableUntil === null ? [compatible, cancel] : [timeBound, compatible, cancel];
-    const message =
-        usableUntil === null
-            ? "Time-bound Setup URIs require a valid device clock. Compatible URIs have no time limit and work with older clients."
-            : `Time-bound Setup URIs can be opened until ${formatWindowEnd(usableUntil)}. This is the end of the current fixed seven-day UTC window, not seven days from now. Compatible URIs have no time limit and work with older clients.`;
-    const selected = await host.services.UI.confirm.askSelectStringDialogue(message, buttons, {
-        title: "Setup URI availability",
-        defaultAction: usableUntil === null ? compatible : timeBound,
-    });
-    if (selected === timeBound && usableUntil !== null) return { mode: "ephemeral", usableUntil };
-    if (selected === compatible) return { mode: "persistent", usableUntil: null };
-    return false;
 }
 
-async function generateAndCopySetupURI(
-    host: SetupFeatureHost,
-    log: LogFunction,
-    removeProperties: (keyof ObsidianLiveSyncSettings)[],
-    skipDefaultValue: boolean
-) {
-    const passphrase = await askEncryptingPassphrase(host);
-    if (passphrase === false) return;
-    while (true) {
-        const choice = await askSetupURIMode(host);
-        if (choice === false) return;
+/**
+ * Create a setup URI for the given settings.
+ *
+ * A time-bound URI can be opened until the end of the current fixed seven-day UTC
+ * window. If that window changes while the URI is being created, it is created again.
+ */
+export async function createSetupURI(
+    settings: ObsidianLiveSyncSettings,
+    passphrase: string,
+    timeBound: boolean,
+    removeProperties: (keyof ObsidianLiveSyncSettings)[] = ["pluginSyncExtendedSetting"]
+): Promise<CreatedSetupURI> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const expected = timeBound ? currentWindowEnd() : null;
+        if (expected === undefined) throw new Error("This device's clock is not valid, so the link cannot expire.");
         let result;
         try {
-            result = await encodeTimeBoundSetupURI(host.services.setting.currentSettings(), passphrase, {
-                mode: choice.mode,
+            result = await encodeTimeBoundSetupURI(settings, passphrase, {
+                mode: timeBound ? "ephemeral" : "persistent",
                 removeProperties,
-                skipDefaultValue,
+                skipDefaultValue: true,
             });
         } catch (error) {
-            if (
-                choice.mode === "ephemeral" &&
-                error instanceof Error &&
-                error.message === "Setup URI window changed during generation"
-            ) {
+            if (timeBound && error instanceof Error && error.message === "Setup URI window changed during generation") {
                 continue;
             }
             throw error;
         }
-        if (result.usableUntil !== choice.usableUntil || !isTimeBoundSetupURIUsableNow(result.usableUntil)) {
-            continue;
-        }
-        if (await host.services.UI.promptCopyToClipboard("Setup URI", result.uri)) {
-            log("Setup URI copied to clipboard", LOG_LEVEL_NOTICE);
-        }
-        return;
+        if (result.usableUntil !== expected || !isTimeBoundSetupURIUsableNow(result.usableUntil)) continue;
+        return { uri: result.uri, expires: result.usableUntil === null ? null : formatWindowEnd(result.usableUntil) };
     }
+    throw new Error("The link could not be created. Try again.");
 }
 
-export async function copySetupURI(host: SetupFeatureHost, log: LogFunction, stripExtra = true) {
-    await generateAndCopySetupURI(host, log, stripExtra ? ["pluginSyncExtendedSetting"] : [], true);
+/** Open the dialogue which creates and copies a setup URI for another device. */
+export async function copySetupURI(host: SetupFeatureHost) {
+    const windowEnd = currentWindowEnd();
+    await host.services.UI.dialogManager.openWithExplicitCancel<CopySetupURIResultType, CopySetupURIInitialData>(
+        CopySetupURI,
+        {
+            expires: windowEnd === undefined ? null : formatWindowEnd(windowEnd),
+            create: (passphrase, timeBound) =>
+                createSetupURI(host.services.setting.currentSettings(), passphrase, timeBound),
+        }
+    );
 }
 
 export function useSetupURIFeature(host: NecessaryServices<"API" | "UI" | "setting" | "appLifecycle", never>) {
-    const log = createInstanceLogFunction("SF:SetupURI", host.services.API);
     host.services.appLifecycle.onLoaded.addHandler(() => {
         host.services.API.addCommand({
             id: "livesync-copysetupuri",
@@ -112,13 +91,13 @@ export function useSetupURIFeature(host: NecessaryServices<"API" | "UI" | "setti
             checkCallback: createCommandCheck(
                 () => host.services.setting.currentSettings().isConfigured,
                 () => {
-                    fireAndForget(copySetupURI(host, log));
+                    fireAndForget(copySetupURI(host));
                 }
             ),
         });
 
         host.services.context.events.onEvent(EVENT_REQUEST_COPY_SETUP_URI, () =>
-            fireAndForget(() => copySetupURI(host, log))
+            fireAndForget(() => copySetupURI(host))
         );
         return Promise.resolve(true);
     });

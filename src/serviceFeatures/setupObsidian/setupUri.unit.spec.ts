@@ -6,20 +6,22 @@ import {
     getTimeBoundSetupURIUsableUntil,
     isTimeBoundSetupURIUsableNow,
 } from "@vrtmrz/livesync-commonlib/setup-uri";
-import { askEncryptingPassphrase, copySetupURI, useSetupURIFeature } from "./setupUri";
+import { copySetupURI, createSetupURI, useSetupURIFeature } from "./setupUri";
 
 vi.mock("@vrtmrz/livesync-commonlib/setup-uri", () => ({
     encodeTimeBoundSetupURI: vi.fn(),
     getTimeBoundSetupURIUsableUntil: vi.fn(),
     isTimeBoundSetupURIUsableNow: vi.fn(),
 }));
+vi.mock("@/modules/features/SetupWizard/dialogs/CopySetupURI.svelte", () => ({ default: "CopySetupURI" }));
 
 describe("setupObsidian/setupUri", () => {
     const usableUntil = Date.parse("2026-10-01T00:00:00Z");
+    const settings = { pluginSyncExtendedSetting: true, x: 1 } as any;
 
     beforeEach(() => {
         vi.mocked(getTimeBoundSetupURIUsableUntil).mockReturnValue(usableUntil);
-        vi.mocked(encodeTimeBoundSetupURI).mockResolvedValue({ uri: "obsidian://setup-time-bound ", usableUntil });
+        vi.mocked(encodeTimeBoundSetupURI).mockResolvedValue({ uri: "obsidian://setup-time-bound", usableUntil });
         vi.mocked(isTimeBoundSetupURIUsableNow).mockReturnValue(true);
     });
 
@@ -28,142 +30,93 @@ describe("setupObsidian/setupUri", () => {
         vi.resetAllMocks();
     });
 
-    it("uses the existing password prompt", async () => {
-        const askString = vi.fn(async () => "secret");
-        const host = { services: { UI: { confirm: { askString } } } } as any;
+    it("creates a time-bound link which expires at the end of the current window", async () => {
+        const created = await createSetupURI(settings, "pass", true);
 
-        await expect(askEncryptingPassphrase(host)).resolves.toBe("secret");
-        expect(askString).toHaveBeenCalledWith(
-            "Encrypt your settings",
-            "The passphrase to encrypt the setup URI",
-            "",
-            true
-        );
-    });
-
-    it("shows the exact Time-bound end at selection and uses it by default", async () => {
-        const askSelectStringDialogue = vi.fn(async () => "Time-bound");
-        const promptCopyToClipboard = vi.fn(async () => true);
-        const currentSettings = { pluginSyncExtendedSetting: true, x: 1 };
-        const host = {
-            services: {
-                setting: { currentSettings: vi.fn(() => currentSettings) },
-                UI: {
-                    confirm: { askString: vi.fn(async () => "pass"), askSelectStringDialogue },
-                    promptCopyToClipboard,
-                },
-            },
-        } as any;
-        const log = vi.fn();
-
-        await copySetupURI(host, log);
-
-        expect(askSelectStringDialogue).toHaveBeenCalledWith(
-            expect.stringContaining("2026"),
-            ["Time-bound", "Compatible (no time limit)", "Cancel"],
-            {
-                title: "Setup URI availability",
-                defaultAction: "Time-bound",
-            }
-        );
-        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith(currentSettings, "pass", {
+        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith(settings, "pass", {
             mode: "ephemeral",
             removeProperties: ["pluginSyncExtendedSetting"],
             skipDefaultValue: true,
         });
-        expect(promptCopyToClipboard).toHaveBeenCalledWith("Setup URI", "obsidian://setup-time-bound ");
-        expect(log).toHaveBeenCalled();
+        expect(created.uri).toBe("obsidian://setup-time-bound");
+        expect(created.expires).toEqual(expect.any(String));
     });
 
-    it("keeps Compatible available when the clock is invalid", async () => {
-        vi.mocked(getTimeBoundSetupURIUsableUntil).mockImplementation(() => {
-            throw new Error("Invalid Setup URI clock");
-        });
+    it("creates a link without a time limit", async () => {
         vi.mocked(encodeTimeBoundSetupURI).mockResolvedValue({ uri: "compatible", usableUntil: null });
-        const askSelectStringDialogue = vi.fn(async () => "Compatible (no time limit)");
-        const host = {
-            services: {
-                setting: { currentSettings: vi.fn(() => ({})) },
-                UI: {
-                    confirm: { askString: vi.fn(async () => "pass"), askSelectStringDialogue },
-                    promptCopyToClipboard: vi.fn(async () => false),
-                },
-            },
-        } as any;
 
-        await copySetupURI(host, vi.fn());
-
-        expect(askSelectStringDialogue).toHaveBeenCalledWith(
-            expect.stringContaining("valid device clock"),
-            ["Compatible (no time limit)", "Cancel"],
-            expect.objectContaining({ defaultAction: "Compatible (no time limit)" })
+        await expect(createSetupURI(settings, "pass", false)).resolves.toEqual({ uri: "compatible", expires: null });
+        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith(
+            settings,
+            "pass",
+            expect.objectContaining({ mode: "persistent" })
         );
     });
 
-    it("does not generate after password or mode cancellation", async () => {
-        const askString = vi.fn(async (): Promise<string | false> => false);
-        const askSelectStringDialogue = vi.fn(async () => "Cancel");
-        const promptCopyToClipboard = vi.fn();
-        const host = {
-            services: {
-                setting: { currentSettings: vi.fn(() => ({})) },
-                UI: { confirm: { askString, askSelectStringDialogue }, promptCopyToClipboard },
-            },
-        } as any;
+    it("creates the link again if the window changes during creation", async () => {
+        const nextUntil = usableUntil + 604_800_000;
+        vi.mocked(getTimeBoundSetupURIUsableUntil).mockReturnValueOnce(usableUntil).mockReturnValueOnce(nextUntil);
+        vi.mocked(encodeTimeBoundSetupURI)
+            .mockRejectedValueOnce(new Error("Setup URI window changed during generation"))
+            .mockResolvedValueOnce({ uri: "new-window", usableUntil: nextUntil });
 
-        await copySetupURI(host, vi.fn());
-        expect(askSelectStringDialogue).not.toHaveBeenCalled();
-        askString.mockResolvedValueOnce("pass");
-        await copySetupURI(host, vi.fn());
-        expect(encodeTimeBoundSetupURI).not.toHaveBeenCalled();
-        expect(promptCopyToClipboard).not.toHaveBeenCalled();
+        await expect(createSetupURI(settings, "pass", true)).resolves.toMatchObject({ uri: "new-window" });
+        expect(encodeTimeBoundSetupURI).toHaveBeenCalledTimes(2);
     });
 
-    it("keeps an empty passphrase distinct from cancelling the existing prompt", async () => {
-        vi.mocked(encodeTimeBoundSetupURI).mockResolvedValue({ uri: "compatible", usableUntil: null });
-        const promptCopyToClipboard = vi.fn(async () => false);
-        const host = {
-            services: {
-                setting: { currentSettings: vi.fn(() => ({})) },
-                UI: {
-                    confirm: {
-                        askString: vi.fn(async () => ""),
-                        askSelectStringDialogue: vi.fn(async () => "Compatible (no time limit)"),
-                    },
-                    promptCopyToClipboard,
-                },
-            },
-        } as any;
-
-        await copySetupURI(host, vi.fn());
-
-        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith({}, "", expect.objectContaining({ mode: "persistent" }));
-        expect(promptCopyToClipboard).toHaveBeenCalledWith("Setup URI", "compatible");
-    });
-
-    it("asks again if the window changes after selection", async () => {
+    it("does not return a link from an earlier window", async () => {
         const nextUntil = usableUntil + 604_800_000;
         vi.mocked(getTimeBoundSetupURIUsableUntil).mockReturnValueOnce(usableUntil).mockReturnValueOnce(nextUntil);
         vi.mocked(encodeTimeBoundSetupURI)
             .mockResolvedValueOnce({ uri: "old-window", usableUntil: nextUntil })
             .mockResolvedValueOnce({ uri: "new-window", usableUntil: nextUntil });
-        const askSelectStringDialogue = vi.fn(async () => "Time-bound");
-        const promptCopyToClipboard = vi.fn(async () => false);
+
+        await expect(createSetupURI(settings, "pass", true)).resolves.toMatchObject({ uri: "new-window" });
+    });
+
+    it("refuses a time-bound link when the clock is invalid", async () => {
+        vi.mocked(getTimeBoundSetupURIUsableUntil).mockImplementation(() => {
+            throw new Error("Invalid Setup URI clock");
+        });
+
+        await expect(createSetupURI(settings, "pass", true)).rejects.toThrow("clock is not valid");
+        expect(encodeTimeBoundSetupURI).not.toHaveBeenCalled();
+    });
+
+    it("opens one dialogue which creates links from the current settings", async () => {
+        const openWithExplicitCancel = vi.fn(async (_component: unknown, _data: any) => "done");
         const host = {
             services: {
-                setting: { currentSettings: vi.fn(() => ({})) },
-                UI: {
-                    confirm: { askString: vi.fn(async () => "pass"), askSelectStringDialogue },
-                    promptCopyToClipboard,
-                },
+                setting: { currentSettings: vi.fn(() => settings) },
+                UI: { dialogManager: { openWithExplicitCancel } },
             },
         } as any;
 
-        await copySetupURI(host, vi.fn());
+        await copySetupURI(host);
 
-        expect(askSelectStringDialogue).toHaveBeenCalledTimes(2);
-        expect(promptCopyToClipboard).toHaveBeenCalledTimes(1);
-        expect(promptCopyToClipboard).toHaveBeenCalledWith("Setup URI", "new-window");
+        expect(openWithExplicitCancel).toHaveBeenCalledOnce();
+        const [component, data] = openWithExplicitCancel.mock.calls[0];
+        expect(component).toBe("CopySetupURI");
+        expect(data.expires).toEqual(expect.any(String));
+        await expect(data.create("pass", true)).resolves.toMatchObject({ uri: "obsidian://setup-time-bound" });
+        expect(encodeTimeBoundSetupURI).toHaveBeenCalledWith(settings, "pass", expect.anything());
+    });
+
+    it("offers only links without a time limit when the clock is invalid", async () => {
+        vi.mocked(getTimeBoundSetupURIUsableUntil).mockImplementation(() => {
+            throw new Error("Invalid Setup URI clock");
+        });
+        const openWithExplicitCancel = vi.fn(async (_component: unknown, _data: any) => "cancelled");
+        const host = {
+            services: {
+                setting: { currentSettings: vi.fn(() => settings) },
+                UI: { dialogManager: { openWithExplicitCancel } },
+            },
+        } as any;
+
+        await copySetupURI(host);
+
+        expect(openWithExplicitCancel.mock.calls[0][1].expires).toBeNull();
     });
 
     it("useSetupURIFeature should register onLoaded handler that wires commands and event", async () => {
@@ -188,10 +141,7 @@ describe("setupObsidian/setupUri", () => {
                     currentSettings: vi.fn(() => ({ x: 1 })),
                 },
                 UI: {
-                    confirm: {
-                        askString: vi.fn(async () => false),
-                    },
-                    promptCopyToClipboard: vi.fn(() => true),
+                    dialogManager: { openWithExplicitCancel: vi.fn(async () => "cancelled") },
                 },
             },
         } as any;
@@ -234,10 +184,7 @@ describe("setupObsidian/setupUri", () => {
                     currentSettings: vi.fn(() => settings),
                 },
                 UI: {
-                    confirm: {
-                        askString: vi.fn(async () => false),
-                    },
-                    promptCopyToClipboard: vi.fn(() => true),
+                    dialogManager: { openWithExplicitCancel: vi.fn(async () => "cancelled") },
                 },
             },
         } as any;
@@ -251,12 +198,12 @@ describe("setupObsidian/setupUri", () => {
 
         settings.isConfigured = true;
         expect(command("livesync-copysetupuri").checkCallback?.(true)).toBe(true);
-        expect(host.services.UI.confirm.askString).not.toHaveBeenCalled();
+        expect(host.services.UI.dialogManager.openWithExplicitCancel).not.toHaveBeenCalled();
         settings.isConfigured = false;
         for (const registered of commands) expect(registered.checkCallback?.(false)).toBe(false);
-        expect(host.services.UI.confirm.askString).not.toHaveBeenCalled();
+        expect(host.services.UI.dialogManager.openWithExplicitCancel).not.toHaveBeenCalled();
         settings.isConfigured = true;
         for (const registered of commands) expect(registered.checkCallback?.(false)).toBe(true);
-        expect(host.services.UI.confirm.askString).toHaveBeenCalledTimes(1);
+        expect(host.services.UI.dialogManager.openWithExplicitCancel).toHaveBeenCalledTimes(1);
     });
 });

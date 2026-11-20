@@ -583,8 +583,6 @@ export const englishMessages = {
         "Setup Complete: Preparing to Fetch Synchronisation Data",
     "Setup Complete: Preparing to Initialise Server": "Setup Complete: Preparing to Initialise Server",
     "Setup URI dialog cancelled.": "Setup URI dialog cancelled.",
-    "Setup.QRCode":
-        'We have generated a QR code to transfer the settings. Please scan the QR code with your phone or other device.\nNote: The QR code is not encrypted, so be careful to open this.\n\n>[!FOR YOUR EYES ONLY]-\n> <div class="sls-qr">${qr_image}</div>',
     "Should we keep folders that don't have any files inside?":
         "Should we keep folders that don't have any files inside?",
     "Should we only check for conflicts when a file is opened?":

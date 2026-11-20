@@ -6,6 +6,7 @@ import { encodeQR, encodeSettingsToQRCodeData } from "@vrtmrz/livesync-commonlib
 import { copySetupURI } from "./setupUri";
 
 vi.mock("./setupUri", () => ({ copySetupURI: vi.fn() }));
+vi.mock("@/modules/features/SetupWizard/dialogs/ShowSetupQR.svelte", () => ({ default: "ShowSetupQR" }));
 
 vi.mock("@vrtmrz/livesync-commonlib/compat/API/processSetting", () => {
     return {
@@ -24,14 +25,13 @@ describe("setupObsidian/qrCode", () => {
                 managed: { uri: "sls+p2p://room?managedType=CF&managedId=turn-key&token=private-token" },
             },
         };
-        const confirmWithMessage = vi.fn();
-        const translate = vi.fn(() => "qr-message");
+        const openWithExplicitCancel = vi.fn(async () => "done");
         const host = {
             services: {
                 API: { addLog: vi.fn() },
-                context: createServiceContext({ translate }),
+                context: createServiceContext(),
                 setting: { currentSettings: () => settings },
-                UI: { confirm: { confirmWithMessage } },
+                UI: { dialogManager: { openWithExplicitCancel } },
             },
         } as any;
         vi.mocked(encodeSettingsToQRCodeData).mockReturnValue("encoded-settings");
@@ -39,8 +39,7 @@ describe("setupObsidian/qrCode", () => {
 
         expect(await encodeSetupSettingsAsQR(host)).toBe("<svg/>");
         expect(encodeSettingsToQRCodeData).toHaveBeenCalledWith(settings);
-        expect(translate).toHaveBeenCalledWith("Setup.QRCode", { qr_image: "<svg/>" });
-        expect(confirmWithMessage).toHaveBeenCalledWith("Settings QR Code", "qr-message", ["OK"], "OK");
+        expect(openWithExplicitCancel).toHaveBeenCalledWith("ShowSetupQR", { parts: ["<svg/>"] });
         expect(copySetupURI).not.toHaveBeenCalled();
     });
 
@@ -50,18 +49,14 @@ describe("setupObsidian/qrCode", () => {
     });
 
     it("encodeSetupSettingsAsQR should return empty string when QR generation fails", async () => {
-        const confirmWithMessage = vi.fn();
+        const openWithExplicitCancel = vi.fn();
         const host = {
             services: {
                 context: createServiceContext(),
                 setting: {
                     currentSettings: vi.fn(() => ({ any: "settings" })),
                 },
-                UI: {
-                    confirm: {
-                        confirmWithMessage,
-                    },
-                },
+                UI: { dialogManager: { openWithExplicitCancel } },
             },
         } as any;
 
@@ -71,34 +66,30 @@ describe("setupObsidian/qrCode", () => {
         const result = await encodeSetupSettingsAsQR(host);
 
         expect(result).toBe("");
-        expect(confirmWithMessage).not.toHaveBeenCalled();
+        expect(openWithExplicitCancel).not.toHaveBeenCalled();
     });
 
-    it("encodeSetupSettingsAsQR should show confirm dialog when QR is generated", async () => {
-        const confirmWithMessage = vi.fn(() => true);
-        const translate = vi.fn(() => "qr-message");
+    it("encodeSetupSettingsAsQR passes every part of a split QR code to one dialogue", async () => {
+        const openWithExplicitCancel = vi.fn(async () => "done");
         const host = {
             services: {
-                context: createServiceContext({ translate }),
+                context: createServiceContext(),
                 setting: {
                     currentSettings: vi.fn(() => ({ any: "settings" })),
                 },
-                UI: {
-                    confirm: {
-                        confirmWithMessage,
-                    },
-                },
+                UI: { dialogManager: { openWithExplicitCancel } },
             },
         } as any;
 
         vi.mocked(encodeSettingsToQRCodeData).mockReturnValue("encoded-settings");
-        vi.mocked(encodeQR).mockReturnValue("<svg/>");
+        vi.mocked(encodeQR).mockReturnValue({ total: 2, parts: ["<svg>1</svg>", "<svg>2</svg>"] } as any);
 
         const result = await encodeSetupSettingsAsQR(host);
 
-        expect(result).toBe("<svg/>");
-        expect(translate).toHaveBeenCalledWith("Setup.QRCode", { qr_image: "<svg/>" });
-        expect(confirmWithMessage).toHaveBeenCalledWith("Settings QR Code", "qr-message", ["OK"], "OK");
+        expect(result).toBe("<svg>1</svg>");
+        expect(openWithExplicitCancel).toHaveBeenCalledExactlyOnceWith("ShowSetupQR", {
+            parts: ["<svg>1</svg>", "<svg>2</svg>"],
+        });
     });
 
     it("useSetupQRCodeFeature should register onLoaded handler that wires command and event", async () => {

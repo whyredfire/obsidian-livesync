@@ -254,13 +254,6 @@ body.is-mobile .livesync-compatibility-review-notice {
     );
 }
 
-.sls-qr {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    max-width: max-content;
-}
-
 /* Diff navigation */
 .diff-options-row {
     display: flex;
@@ -506,6 +499,51 @@ body.is-mobile .livesync-compatibility-review-notice {
 .rs-message-warning {
     background: rgba(var(--color-orange-rgb), 0.1);
     color: var(--text-warning);
+}
+
+.rs-message-success {
+    background: rgba(var(--color-green-rgb), 0.1);
+    color: var(--text-success);
+}
+
+.rs-setup textarea.rs-uri {
+    width: 100%;
+    resize: none;
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    word-break: break-all;
+}
+
+.rs-qr-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--size-4-2);
+}
+
+.rs-qr,
+.dialog-host button.rs-qr-reveal {
+    width: 240px;
+    height: 240px;
+    border-radius: var(--radius-m);
+}
+
+.rs-qr {
+    padding: var(--size-4-3);
+    background: #ffffff;
+    image-rendering: pixelated;
+}
+
+.dialog-host button.rs-qr-reveal {
+    background: var(--background-secondary);
+    border: 1px dashed var(--background-modifier-border);
+    box-shadow: none;
+    color: var(--text-muted);
+}
+
+.dialog-host button.rs-qr-reveal:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
 }
 
 .rs-actions {

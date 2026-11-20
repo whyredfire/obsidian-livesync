@@ -243,7 +243,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
                 "Copy a link which configures another device with the same bucket and encryption settings. It is protected with a passphrase you choose."
             )
             .addButton((button) =>
-                button.setButtonText("Copy").onClick(() => fireAndForget(() => copySetupURI(this.core, this.log)))
+                button.setButtonText("Copy").onClick(() => fireAndForget(() => copySetupURI(this.core)))
             );
         new Setting(containerEl)
             .setName("Show QR code")
