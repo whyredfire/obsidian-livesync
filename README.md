@@ -26,11 +26,11 @@ The bucket does not need a CORS policy: Red Sync sends its requests through Obsi
 
 ## Installation
 
-Red Sync is not published in the community plug-in directory. Build it and copy it into your vault:
+Red Sync is not published in the community plug-in directory. Build it with [Bun](https://bun.sh) and copy it into your vault:
 
 ```sh
-npm install
-npm run build
+bun install
+bun run build
 mkdir -p <vault>/.obsidian/plugins/red-sync
 cp main.js manifest.json styles.css <vault>/.obsidian/plugins/red-sync/
 ```
@@ -91,10 +91,10 @@ Available from the command palette:
 ## Development
 
 ```sh
-npm install
-npm run check      # type checks, lint, Svelte checks, and a production build
-npm run test:unit  # unit tests
-npm run dev        # development build; set PATHS_TEST_INSTALL (see example.env) to copy it into a vault
+bun install
+bun run check      # type checks, lint, Svelte checks, and a production build
+bun run test:unit  # unit tests
+bun run dev        # development build; set PATHS_TEST_INSTALL (see example.env) to copy it into a vault
 ```
 
 The synchronisation engine is provided by the `@vrtmrz/livesync-commonlib` package.

@@ -1,7 +1,7 @@
 /**
  * @file vitest.config.integration.ts
  * @description Configuration for integration tests which use a real (in-memory) PouchDB database.
- * Run with `npm run test:integration`.
+ * Run with `bun run test:integration`.
  */
 import { defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vitest.config.common";

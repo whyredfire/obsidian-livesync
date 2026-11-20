@@ -23,7 +23,9 @@ Red Sync is an Obsidian plug-in which synchronises a vault through a Cloudflare 
 
 ## Verification
 
+Bun is the package manager (`bun install`, `bun add`); the lockfile is `bun.lock`. Build tools and tests run under Node through `bun run`.
+
 ```sh
-npm run check      # tsc, ESLint, svelte-check, production build, iOS 15 compatibility
-npm run test:unit  # unit tests (vitest)
+bun run check      # tsc, ESLint, svelte-check, production build, iOS 15 compatibility
+bun run test:unit  # unit tests (vitest)
 ```

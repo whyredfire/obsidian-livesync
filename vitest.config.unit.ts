@@ -1,7 +1,7 @@
 /**
  * @file vitest.config.unit.ts
  * @description Configuration for running unit tests in Node.js (excluding browser harnesses, E2E, and database integration tests).
- * Run with `npm run test:unit`, or with coverage via `npm run test:unit:coverage`.
+ * Run with `bun run test:unit`, or with coverage via `bun run test:unit:coverage`.
  */
 import { defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vitest.config.common";

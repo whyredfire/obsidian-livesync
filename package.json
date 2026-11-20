@@ -13,16 +13,16 @@
         "svelte-check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
         "tsc-check": "tsc --noEmit",
         "pretty:json": "prettier --config ./.prettierrc.mjs \"**/*.json\" --write --log-level error",
-        "pretty": "npm run prettyNoWrite -- --write --log-level error",
-        "prettyCheck": "npm run prettyNoWrite -- --check",
+        "pretty": "bun run prettyNoWrite -- --write --log-level error",
+        "prettyCheck": "bun run prettyNoWrite -- --check",
         "prettyNoWrite": "prettier --config ./.prettierrc.mjs \"**/*.js\" \"**/*.ts\" \"**/*.json\" ",
-        "precheck:compatibility": "npm run build",
+        "precheck:compatibility": "bun run build",
         "check:compatibility": "node scripts/check-compatibility.js --file main.js --ios 15",
-        "check": "npm run tsc-check && npm run lint && npm run lint:community && npm run svelte-check && npm run check:compatibility",
+        "check": "bun run tsc-check && bun run lint && bun run lint:community && bun run svelte-check && bun run check:compatibility",
         "test:unit": "vitest run --config vitest.config.unit.ts",
         "test:integration": "vitest run --config vitest.config.integration.ts",
         "test:unit:coverage": "vitest run --config vitest.config.unit.ts --coverage",
-        "version": "node version-bump.mjs && npm run pretty:json && git add manifest.json versions.json"
+        "version": "node version-bump.mjs && bun run pretty:json && git add manifest.json versions.json"
     },
     "keywords": [],
     "author": "vorotamoroz",
@@ -77,42 +77,12 @@
         "octagonal-wheels": "0.1.57"
     },
     "overrides": {
-        "obsidian": {
-            "moment": "2.31.0"
-        },
-        "svelte": {
-            "devalue": "5.9.3"
-        },
-        "pouchdb-core": {
-            "uuid": "11.1.1"
-        },
-        "pouchdb-utils": {
-            "uuid": "11.1.1"
-        },
-        "@typescript-eslint/typescript-estree": {
-            "minimatch": "$minimatch"
-        },
-        "eslint-plugin-n": {
-            "minimatch": "$minimatch"
-        },
-        "test-exclude": {
-            "glob": "14.0.3",
-            "minimatch": "$minimatch"
-        },
-        "eslint": {
-            "minimatch": "$minimatch"
-        },
-        "@eslint/config-array": {
-            "minimatch": "$minimatch"
-        },
-        "@eslint/eslintrc": {
-            "minimatch": "$minimatch"
-        }
+        "moment": "2.31.0",
+        "devalue": "5.9.3",
+        "uuid": "11.1.1"
     },
-    "allowScripts": {
-        "esbuild@0.28.1": true,
-        "leveldown@5.6.0": true,
-        "leveldown@6.1.1": true,
-        "svelte-preprocess": false
-    }
+    "trustedDependencies": [
+        "esbuild"
+    ],
+    "packageManager": "bun@1.4.4"
 }
