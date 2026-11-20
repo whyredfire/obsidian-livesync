@@ -26,16 +26,11 @@ The bucket does not need a CORS policy: Red Sync sends its requests through Obsi
 
 ## Installation
 
-Red Sync is not published in the community plug-in directory. Build it with [Bun](https://bun.sh) and copy it into your vault:
+Red Sync is not listed in the community plug-in directory. Install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat), which also keeps it up to date:
 
-```sh
-bun install
-bun run build
-mkdir -p <vault>/.obsidian/plugins/red-sync
-cp main.js manifest.json styles.css <vault>/.obsidian/plugins/red-sync/
-```
-
-Then enable 'Red Sync' in Obsidian under Settings, Community plug-ins.
+1. In Obsidian, open Settings, Community plug-ins, Browse, then install and enable 'BRAT'.
+2. Run the command 'BRAT: Plugins: Add a beta plugin for testing' and enter `whyredfire/obsidian-redsync`.
+3. Enable 'Red Sync' under Settings, Community plug-ins.
 
 ## Setting up the first device
 
@@ -106,6 +101,10 @@ bun run dev        # development build; set PATHS_TEST_INSTALL (see example.env)
 ```
 
 The synchronisation engine is provided by the `@vrtmrz/livesync-commonlib` package.
+
+## Releasing
+
+Run the 'release' workflow from the Actions tab with the new version, for example `0.1.1`. It sets the version in `package.json`, `manifest.json`, and `versions.json`, runs the checks and tests, commits and tags the version, and publishes a GitHub release with `main.js`, `manifest.json`, and `styles.css`. BRAT installs updates from these releases.
 
 ## Licence and credits
 

@@ -30,3 +30,5 @@ Bun is the package manager (`bun install`, `bun add`); the lockfile is `bun.lock
 bun run check      # tsc, ESLint, svelte-check, production build, iOS 15 compatibility
 bun run test:unit  # unit tests (vitest)
 ```
+
+Releases are published by the manually run `release` workflow (`.github/workflows/release.yml`), which calls `version-bump.mjs`. Release tags are the bare version (`0.1.1`, not `v0.1.1`), because Obsidian and BRAT match the tag to `manifest.json`.

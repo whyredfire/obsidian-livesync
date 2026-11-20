@@ -21,11 +21,10 @@
         "check": "bun run tsc-check && bun run lint && bun run lint:community && bun run svelte-check && bun run check:compatibility",
         "test:unit": "vitest run --config vitest.config.unit.ts",
         "test:integration": "vitest run --config vitest.config.integration.ts",
-        "test:unit:coverage": "vitest run --config vitest.config.unit.ts --coverage",
-        "version": "node version-bump.mjs && bun run pretty:json && git add manifest.json versions.json"
+        "test:unit:coverage": "vitest run --config vitest.config.unit.ts --coverage"
     },
     "keywords": [],
-    "author": "vorotamoroz",
+    "author": "Karan Parashar",
     "license": "MIT",
     "devDependencies": {
         "@aws-sdk/client-s3": "^3.808.0",
