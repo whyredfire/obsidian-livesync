@@ -1,4 +1,4 @@
-import { Logger, LOG_LEVEL_NOTICE } from "octagonal-wheels/common/logger";
+import { Logger, LOG_LEVEL_INFO, LOG_LEVEL_NOTICE } from "octagonal-wheels/common/logger";
 import { extractObject } from "octagonal-wheels/object";
 import {
     TweakValuesTemplate,
@@ -21,19 +21,7 @@ import {
     CENTRAL_COMPATIBILITY_REJECTION_REASONS,
     REMOTE_RESOURCE_KINDS,
     type ReplicationAttemptFailure,
-    type ReplicatorInstance,
 } from "@vrtmrz/livesync-commonlib/replication";
-
-interface PreferredRemoteTweakWriter extends ReplicatorInstance {
-    setPreferredRemoteTweakSettings(setting: ObsidianLiveSyncSettings): Promise<void>;
-}
-
-function canSetPreferredRemoteTweakSettings(replicator: ReplicatorInstance): replicator is PreferredRemoteTweakWriter {
-    return (
-        "setPreferredRemoteTweakSettings" in replicator &&
-        typeof replicator.setPreferredRemoteTweakSettings === "function"
-    );
-}
 
 /**
  * Localised counterpart of Commonlib's `confName()`, which takes no translator.
@@ -186,25 +174,14 @@ export class ModuleResolvingMismatchedTweaks extends AbstractModule {
         if (!isCurrent || resolutionSettingsSignature(failure.setting) !== resolutionSettingsSignature(this.settings)) {
             return true;
         }
+        // Adopt the synchronisation settings stored in R2 without asking, then try again.
         const assessment =
             recovery.tweakAssessment ?? assessTweakCompatibility(failure.setting, recovery.preferredTweakValue);
-        const ret = await this.services.tweakValue.askResolvingMismatched(
-            { ...recovery.preferredTweakValue },
-            async (setting) => {
-                let updated = false;
-                await this.services.replicator.runWithActiveReplicatorContext(async (activeContext) => {
-                    if (activeContext !== failure.context) return;
-                    if (!canSetPreferredRemoteTweakSettings(activeContext.replicator)) return;
-                    await activeContext.replicator.setPreferredRemoteTweakSettings({ ...setting });
-                    updated = true;
-                });
-                return updated;
-            },
-            assessment
-        );
-        if (ret == "OK") return false;
-        if (ret == "CHECKAGAIN") return "CHECKAGAIN";
-        if (ret == "IGNORE") return true;
+        const changes = assessment.adoptPreferred.changes;
+        if (Object.keys(changes).length === 0) return true;
+        await this.services.setting.applyExternalSettings({ ...this.settings, ...changes }, true);
+        Logger("Adopted the synchronisation settings stored in R2.", LOG_LEVEL_INFO);
+        return "CHECKAGAIN";
     }
 
     async _checkAndAskResolvingMismatchedTweaks(

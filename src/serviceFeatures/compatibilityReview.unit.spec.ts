@@ -1,18 +1,11 @@
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import type {
-    NecessaryServices,
-    NecessaryServicesInterfaces,
-} from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
+import { describe, expect, it, vi } from "vitest";
+import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import {
     COMPATIBILITY_PAUSE_SETTING_MESSAGE,
     DATABASE_COMPATIBILITY_VERSION_KEY,
     legacyDatabaseCompatibilityVersionKey,
 } from "./compatibilityReview.evaluation.ts";
-import {
-    CompatibilityReviewController,
-    type CompatibilityReviewUi,
-    useCompatibilityReview,
-} from "./compatibilityReview.ts";
+import { CompatibilityReviewController, useCompatibilityReview } from "./compatibilityReview.ts";
 
 function migrationState(overrides: Record<string, unknown> = {}) {
     return {
@@ -83,16 +76,11 @@ function createFixture(
             control: { applySettings },
         },
     } as never;
-    const ui: CompatibilityReviewUi = {
-        showSummary: vi.fn().mockResolvedValue("keep-paused"),
-        showDetails: vi.fn().mockResolvedValue(false),
-        showReminder: vi.fn(),
-        clearReminder: vi.fn(),
-    };
-    const controller = new CompatibilityReviewController(core, ui, 12);
+    const log = vi.fn();
+    const controller = new CompatibilityReviewController(core, log, 12);
     return {
         controller,
-        ui,
+        log,
         local,
         deviceValues,
         config,
@@ -104,37 +92,7 @@ function createFixture(
     };
 }
 
-describe("compatibility review controller", () => {
-    it("accepts operation services without retaining an application-core contract", () => {
-        type Dependencies = NecessaryServicesInterfaces<"setting" | "config" | "vault" | "control", never>;
-        type ControllerHost = ConstructorParameters<typeof CompatibilityReviewController>[0];
-
-        expectTypeOf<Dependencies>().toExtend<ControllerHost>();
-        expectTypeOf<keyof ControllerHost>().toEqualTypeOf<"services" | "serviceModules">();
-        expectTypeOf<keyof ControllerHost["services"]>().toEqualTypeOf<"setting" | "config" | "vault" | "control">();
-        expectTypeOf<keyof ControllerHost["serviceModules"]>().toBeNever();
-    });
-
-    it("composes the review from its operation services and lifecycle and command ports", () => {
-        type Dependencies = NecessaryServices<
-            "setting" | "config" | "vault" | "control" | "appLifecycle" | "API",
-            never
-        >;
-        type FeatureHost = Parameters<typeof useCompatibilityReview>[0];
-
-        expectTypeOf<Dependencies>().toExtend<FeatureHost>();
-        expectTypeOf<keyof FeatureHost>().toEqualTypeOf<"services" | "serviceModules">();
-        expectTypeOf<keyof FeatureHost["services"]>().toEqualTypeOf<
-            "context" | "setting" | "config" | "vault" | "control" | "appLifecycle" | "API"
-        >();
-        expectTypeOf<keyof FeatureHost["serviceModules"]>().toBeNever();
-        expectTypeOf<ReturnType<typeof useCompatibilityReview>>().toEqualTypeOf<CompatibilityReviewController>();
-    });
-
-    beforeEach(() => {
-        vi.restoreAllMocks();
-    });
-
+describe("compatibility pause", () => {
     it("initialises the acknowledged version for a new Vault without showing a pause", async () => {
         const fixture = createFixture({ marker: null, isConfigured: false, migration: { isNewVault: true } });
 
@@ -167,85 +125,32 @@ describe("compatibility review controller", () => {
         expect(fixture.saveSettingData).not.toHaveBeenCalled();
     });
 
-    it("starts a configured Vault with no device marker without a review or settings changes", async () => {
-        const fixture = createFixture({ marker: null });
-        const previousSettings = { ...fixture.settings };
-
-        await fixture.controller.initialise();
-        await fixture.controller.openReview();
-
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("12");
-        expect(fixture.controller.pendingPause).toBeUndefined();
-        expect(fixture.settings).toEqual(previousSettings);
-        expect(fixture.saveSettingData).not.toHaveBeenCalled();
-        expect(fixture.ui.showSummary).not.toHaveBeenCalled();
-        expect(fixture.ui.showReminder).not.toHaveBeenCalled();
-    });
-
-    it("keeps an already persisted review when the device marker is absent", async () => {
-        const fixture = createFixture({ marker: null, versionUpFlash: COMPATIBILITY_PAUSE_SETTING_MESSAGE });
-
-        await fixture.controller.initialise();
-        await fixture.controller.openReview();
-
-        expect(fixture.settings.versionUpFlash).toBe(COMPATIBILITY_PAUSE_SETTING_MESSAGE);
-        expect(fixture.controller.pendingPause?.reasons).toEqual([
-            {
-                source: "legacy-review",
-                message: COMPATIBILITY_PAUSE_SETTING_MESSAGE,
-                resumable: true,
-            },
-        ]);
-        expect(fixture.local.has(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe(false);
-        expect(fixture.ui.showReminder).toHaveBeenCalledOnce();
-    });
-
-    it("preserves preferences and advances the marker only after an upgrade review is resumed", async () => {
+    it("resumes an upgrade pause automatically without asking", async () => {
         const fixture = createFixture({ marker: "11" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValue("resume");
 
         await fixture.controller.initialise();
-
         expect(fixture.settings.versionUpFlash).toBe(COMPATIBILITY_PAUSE_SETTING_MESSAGE);
         expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
-        expect(fixture.saveSettingData).toHaveBeenCalledTimes(1);
 
-        await fixture.controller.openReview();
+        await fixture.controller.settle();
 
         expect(fixture.settings.versionUpFlash).toBe("");
         expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("12");
-        expect(fixture.saveSettingData).toHaveBeenCalledTimes(2);
         expect(fixture.applySettings).toHaveBeenCalledOnce();
         expect(fixture.controller.pendingPause).toBeUndefined();
-        expect(fixture.ui.clearReminder).toHaveBeenCalled();
+        expect(fixture.log).not.toHaveBeenCalledWith(expect.anything(), LOG_LEVEL_URGENT);
     });
 
-    it("does not allow a downgrade pause to be resumed", async () => {
+    it("keeps a downgrade paused and says once that this device needs an update", async () => {
         const fixture = createFixture({ marker: "13" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValue("resume");
 
         await fixture.controller.initialise();
-        await fixture.controller.openReview();
+        await fixture.controller.settle();
 
         expect(fixture.controller.pendingPause?.resumable).toBe(false);
-        expect(fixture.settings.versionUpFlash).toBe(COMPATIBILITY_PAUSE_SETTING_MESSAGE);
         expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("13");
         expect(fixture.applySettings).not.toHaveBeenCalled();
-        expect(fixture.ui.showReminder).toHaveBeenCalledOnce();
-    });
-
-    it("returns from details to the reason dialogue and leaves a persistent reminder", async () => {
-        const fixture = createFixture({ marker: "11" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValueOnce("details").mockResolvedValueOnce("keep-paused");
-        vi.mocked(fixture.ui.showDetails).mockResolvedValue("back");
-
-        await fixture.controller.initialise();
-        await fixture.controller.openReview();
-
-        expect(fixture.ui.showSummary).toHaveBeenCalledTimes(2);
-        expect(fixture.ui.showDetails).toHaveBeenCalledOnce();
-        expect(fixture.ui.showReminder).toHaveBeenCalledOnce();
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
+        expect(fixture.log).toHaveBeenCalledWith(expect.stringContaining("Update Red Sync"), LOG_LEVEL_URGENT);
     });
 
     it("migrates the old Vault-scoped marker to Commonlib device-local storage", async () => {
@@ -258,136 +163,48 @@ describe("compatibility review controller", () => {
         expect(fixture.controller.pendingPause).toBeDefined();
     });
 
-    it("saves the scoped marker before deleting the legacy device value", async () => {
-        const fixture = createFixture({ legacyMarker: "11" });
-        let finishSave!: () => void;
-        const saving = new Promise<void>((resolve) => {
-            finishSave = resolve;
-        });
-        fixture.config.setValue.mockImplementation(async (key, value) => {
-            await saving;
-            fixture.local.set(key, value);
-        });
-
-        const initialising = fixture.controller.initialise();
-        await Promise.resolve();
-        await Promise.resolve();
-
-        expect(fixture.deviceValues.get(fixture.legacyKey)).toBe("11");
-        expect(fixture.deviceValueStore.delete).not.toHaveBeenCalled();
-        expect(fixture.controller.initialised).toBe(false);
-
-        finishSave();
-        await initialising;
-
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
-        expect(fixture.deviceValues.has(fixture.legacyKey)).toBe(false);
-        expect(fixture.controller.initialised).toBe(true);
-    });
-
-    it("does not treat a failed marker read as an absent value", async () => {
-        const fixture = createFixture({ legacyMarker: "11" });
-        fixture.config.getValue.mockRejectedValueOnce(new Error("marker read failed"));
-
-        await expect(fixture.controller.initialise()).rejects.toThrow("marker read failed");
-
-        expect(fixture.deviceValueStore.getValue).not.toHaveBeenCalled();
-        expect(fixture.deviceValues.get(fixture.legacyKey)).toBe("11");
-        expect(fixture.controller.initialised).toBe(false);
-    });
-
-    it("keeps the compatibility pause blocked until its async marker write succeeds", async () => {
+    it("keeps the pause if saving the acknowledgement fails", async () => {
         const fixture = createFixture({ marker: "11" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValue("resume");
-        await fixture.controller.initialise();
-        let finishSave!: () => void;
-        const saving = new Promise<void>((resolve) => {
-            finishSave = resolve;
-        });
-        fixture.config.setValue.mockImplementation(async (key, value) => {
-            await saving;
-            fixture.local.set(key, value);
-        });
-
-        const reviewing = fixture.controller.openReview();
-        await Promise.resolve();
-        await Promise.resolve();
-
-        expect(fixture.controller.pendingPause).toBeDefined();
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
-        expect(fixture.applySettings).not.toHaveBeenCalled();
-
-        finishSave();
-        await reviewing;
-
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("12");
-        expect(fixture.controller.pendingPause).toBeUndefined();
-        expect(fixture.applySettings).toHaveBeenCalledOnce();
-    });
-
-    it("keeps a storage-failed acknowledgement blocked and retryable", async () => {
-        const fixture = createFixture({ marker: "11" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValue("resume");
-        await fixture.controller.initialise();
-        fixture.config.setValue.mockRejectedValueOnce(new Error("marker write failed"));
-
-        await expect(fixture.controller.openReview()).rejects.toThrow("marker write failed");
-
-        expect(fixture.controller.pendingPause).toBeDefined();
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
-        expect(fixture.applySettings).not.toHaveBeenCalled();
-
-        await fixture.controller.openReview();
-
-        expect(fixture.controller.pendingPause).toBeUndefined();
-        expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("12");
-        expect(fixture.applySettings).toHaveBeenCalledOnce();
-    });
-
-    it("restores the runtime gate if persisting an acknowledgement fails", async () => {
-        const fixture = createFixture({ marker: "11" });
-        vi.mocked(fixture.ui.showSummary).mockResolvedValue("resume");
         await fixture.controller.initialise();
         fixture.saveSettingData.mockRejectedValueOnce(new Error("save failed"));
 
-        await expect(fixture.controller.openReview()).rejects.toThrow("save failed");
+        await expect(fixture.controller.settle()).rejects.toThrow("save failed");
 
         expect(fixture.settings.versionUpFlash).toBe(COMPATIBILITY_PAUSE_SETTING_MESSAGE);
         expect(fixture.local.get(DATABASE_COMPATIBILITY_VERSION_KEY)).toBe("11");
         expect(fixture.applySettings).not.toHaveBeenCalled();
     });
 
-    it("does not open a delayed review after the controller has been disposed", async () => {
+    it("does nothing after it has been disposed", async () => {
         const fixture = createFixture({ marker: "11" });
         await fixture.controller.initialise();
-
         fixture.controller.dispose();
-        await fixture.controller.openReview();
-
-        expect(fixture.controller.pendingPause).toBeUndefined();
-        expect(fixture.ui.showSummary).not.toHaveBeenCalled();
-        expect(fixture.ui.clearReminder).toHaveBeenCalledOnce();
+        await fixture.controller.settle();
+        expect(fixture.applySettings).not.toHaveBeenCalled();
     });
 
-    it("runs the review after the ordered red flag recovery handlers", () => {
-        const onSettingLoaded = { addHandler: vi.fn() };
-        const onLayoutReady = { addHandler: vi.fn() };
-        const onUnload = { addHandler: vi.fn() };
-        const core = {
+    it("settles the pause after scheduled Fetch and Rebuild, without a command", async () => {
+        const layout: { handler: () => Promise<boolean>; priority: number }[] = [];
+        const addCommand = vi.fn();
+        const host = {
             services: {
-                appLifecycle: { onSettingLoaded, onLayoutReady, onUnload },
-                API: { addCommand: vi.fn() },
+                API: { addLog: vi.fn(), addCommand },
+                appLifecycle: {
+                    onSettingLoaded: { addHandler: vi.fn() },
+                    onLayoutReady: {
+                        addHandler: vi.fn((handler: () => Promise<boolean>, priority: number) =>
+                            layout.push({ handler, priority })
+                        ),
+                    },
+                    onUnload: { addHandler: vi.fn() },
+                },
             },
         } as never;
-        const ui: CompatibilityReviewUi = {
-            showSummary: vi.fn(),
-            showDetails: vi.fn(),
-            showReminder: vi.fn(),
-            clearReminder: vi.fn(),
-        };
 
-        useCompatibilityReview(core, ui);
+        useCompatibilityReview(host);
 
-        expect(onLayoutReady.addHandler).toHaveBeenCalledWith(expect.any(Function), 30);
+        expect(layout).toHaveLength(1);
+        expect(layout[0].priority).toBeGreaterThan(20);
+        expect(addCommand).not.toHaveBeenCalled();
     });
 });

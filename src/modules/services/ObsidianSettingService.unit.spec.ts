@@ -127,4 +127,22 @@ describe("ObsidianSettingService", () => {
         await reloaded.loadSettings();
         expect(reloaded.statsForNerds).toBe(true);
     });
+
+    it("stores the silence-notifications preference on this device and hides visible notices", async () => {
+        const values = new MemoryValueStore();
+        const service = createSettingService("vault", values);
+        const context = (service as unknown as { context: ObsidianServiceContext }).context;
+        const hideAll = vi.fn();
+        Object.assign(context, { notices: { hideAll } });
+        await service.loadSettings();
+        expect(service.silenceNotifications).toBe(false);
+
+        await service.setSilenceNotifications(true);
+        expect(context.notificationsSilenced).toBe(true);
+        expect(hideAll).toHaveBeenCalledOnce();
+
+        const reloaded = createSettingService("vault", values);
+        await reloaded.loadSettings();
+        expect(reloaded.silenceNotifications).toBe(true);
+    });
 });

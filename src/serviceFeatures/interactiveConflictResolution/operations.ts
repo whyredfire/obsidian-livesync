@@ -21,7 +21,6 @@ import type {
 } from "@vrtmrz/livesync-commonlib/compat/services/base/IService";
 import type { LiveSyncLocalDB } from "@vrtmrz/livesync-commonlib/compat/pouchdb/LiveSyncLocalDB";
 import type { LiveSyncEventHub } from "@vrtmrz/livesync-commonlib/context";
-import { fireAndForget } from "octagonal-wheels/promises";
 import { withLock } from "octagonal-wheels/concurrency/lock";
 import { withCancellation } from "octagonal-wheels/concurrency/cancellation";
 import { withScope } from "octagonal-wheels/resource/scope";
@@ -31,8 +30,12 @@ import { EVENT_CONFLICT_CANCELLED, EVENT_ON_UNRESOLVED_ERROR } from "@/common/ev
 import { $msg } from "@/common/translation.ts";
 import { stripAllPrefixes } from "@vrtmrz/livesync-commonlib/compat/string_and_binary/path";
 import type { LogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
+import type { StorageAccess } from "@vrtmrz/livesync-commonlib/compat/interfaces/StorageAccess";
 import {
+    conflictedCopyPath,
+    KEEP_COPY,
     POSTPONED,
+    splitByAge,
     type ConflictResolveDialogue,
     type ConflictResolveDialogueFactory,
     type MergeDialogResult,
@@ -42,6 +45,7 @@ export interface InteractiveConflictResolutionOperationsDependencies {
     readonly events: Pick<LiveSyncEventHub, "emitEvent">;
     readonly signal: AbortSignal;
     readonly databaseFileAccess: Pick<DatabaseFileAccess, "getConflictedRevs" | "storeContent">;
+    readonly storageAccess: Pick<StorageAccess, "isExists" | "writeFileAuto">;
     readonly localDatabase: () => Pick<LiveSyncLocalDB, "getDBEntry" | "findAllDocs">;
     readonly confirm: Pick<Confirm, "askSelectString" | "askInPopup">;
     readonly path: Pick<IPathService, "getPath">;
@@ -270,6 +274,29 @@ export function createInteractiveConflictResolutionOperations(
                         );
                         return false;
                     }
+                } else if (toDelete === KEEP_COPY) {
+                    // Keep the newer version in the note and save the older one beside it.
+                    const { older } = splitByAge(conflictCheckResult);
+                    if (!older.deleted) {
+                        let copyPath = conflictedCopyPath(filename, older.mtime);
+                        for (let attempt = 1; await dependencies.storageAccess.isExists(copyPath); attempt++) {
+                            copyPath = conflictedCopyPath(filename, older.mtime, attempt);
+                        }
+                        if (!(await dependencies.storageAccess.writeFileAuto(copyPath, older.data))) {
+                            dependencies.log(`Could not save the conflicted copy of ${filename}`, LOG_LEVEL_NOTICE);
+                            return false;
+                        }
+                        dependencies.log(`Saved the other version of ${filename} as ${copyPath}`, LOG_LEVEL_INFO);
+                    }
+                    const deletionResult = await dependencies.conflict.resolveByDeletingRevision(
+                        filename,
+                        older.rev,
+                        "UI Kept a copy"
+                    );
+                    if (deletionResult == MISSING_OR_ERROR) {
+                        dependencies.log(`Merge: Something went wrong: ${filename}, (${older.rev})`, LOG_LEVEL_NOTICE);
+                        return false;
+                    }
                 } else if (
                     typeof toDelete === "string" &&
                     (toDelete === conflictCheckResult.left.rev || toDelete === conflictCheckResult.right.rev)
@@ -358,19 +385,10 @@ export function createInteractiveConflictResolutionOperations(
             }
             if (dependencies.signal.aborted) return false;
             if (notes.length > 0) {
-                dependencies.confirm.askInPopup(
-                    `conflicting-detected-on-safety`,
-                    `Some files have been left conflicted! Press {HERE} to resolve them, or you can do it later by "Pick a file to resolve conflict`,
-                    (anchor) => {
-                        anchor.text = "HERE";
-                        anchor.addEventListener("click", () => {
-                            fireAndForget(() => allConflictCheck());
-                        });
-                    }
-                );
+                // No pop-up: each note asks when it is opened, and the commands list them.
                 dependencies.log(
-                    `Some files have been left conflicted! Please resolve them by "Pick a file to resolve conflict". The list is written in the log.`,
-                    LOG_LEVEL_VERBOSE
+                    `Some files have unresolved conflicts. They are resolved when opened, or with "Pick a file to resolve conflict".`,
+                    LOG_LEVEL_INFO
                 );
                 for (const note of notes) {
                     dependencies.log(`Conflicted: ${note.path}`);

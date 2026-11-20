@@ -94,6 +94,10 @@ export const RED_SYNC_ENFORCED_SETTINGS = {
     batchSave: true,
     batchSaveMinimumDelay: 5,
     batchSaveMaximumDelay: 60,
+    // Conflicts which cannot be merged automatically are asked about when the note is
+    // opened, never in the middle of other work.
+    resolveConflictsByNewerFile: false,
+    showMergeDialogOnlyOnActive: true,
     // Features which are not part of Red Sync.
     syncInternalFiles: false,
     usePluginSync: false,

@@ -279,4 +279,17 @@ describe("ObsidianConfirm Fancy Kit adapter", () => {
 
         expect(notices.hide).toHaveBeenCalledWith(popupKey);
     });
+
+    it("shows no pop-up while notifications are silenced", () => {
+        vi.useFakeTimers();
+        try {
+            const { confirm, notices } = createConfirm();
+            (confirm as unknown as { _context: ObsidianServiceContext })._context.notificationsSilenced = true;
+            confirm.askInPopup("conflicts", "Resolve {HERE}", vi.fn());
+            vi.advanceTimersByTime(2000);
+            expect(notices.show).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

@@ -9,7 +9,7 @@ import type { ConflictResolveDialogueFactory } from "./types";
 
 export type InteractiveConflictResolutionHost = NecessaryServices<
     "API" | "UI" | "appLifecycle" | "conflict" | "replication" | "vault" | "database" | "setting" | "path",
-    "databaseFileAccess"
+    "databaseFileAccess" | "storageAccess"
 >;
 
 export function useInteractiveConflictResolutionFeature(
@@ -22,6 +22,7 @@ export function useInteractiveConflictResolutionFeature(
         events: services.context.events,
         signal: lifetime.signal,
         databaseFileAccess: host.serviceModules.databaseFileAccess,
+        storageAccess: host.serviceModules.storageAccess,
         localDatabase: () => services.database.localDatabase,
         confirm: services.UI.confirm,
         path: services.path,

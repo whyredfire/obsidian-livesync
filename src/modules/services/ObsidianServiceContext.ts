@@ -13,6 +13,11 @@ export class ObsidianServiceContext extends ServiceContext {
     liveSyncPlugin: ObsidianLiveSyncPlugin;
     readonly notices: KeyedNoticeManager;
     readonly noticeGroups: ObsidianNoticeGroups;
+    /**
+     * Whether Red Sync shows no notices at all on this device ('Silence notifications').
+     * The setting service keeps it; everything that shows a notice checks it.
+     */
+    notificationsSilenced = false;
 
     /**
      * Whether the host is in its foreground activity phase for lifecycle work.

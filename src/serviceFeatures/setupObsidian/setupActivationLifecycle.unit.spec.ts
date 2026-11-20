@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-    applySettingsAndFetchOnActivation,
-    applySettingsWithScheduledInitialisation,
-    type SetupInitialisationScheduler,
-} from "./setupActivationLifecycle";
+import { applySettingsWithScheduledInitialisation, type SetupInitialisationScheduler } from "./setupActivationLifecycle";
 
 function createScheduler() {
     const events: string[] = [];
@@ -26,33 +22,15 @@ function createScheduler() {
 }
 
 describe("setup activation lifecycle", () => {
-    it.each([
-        ["fetch", "fetch-reserved"],
-        ["rebuild", "rebuild-reserved"],
-    ] as const)("reserves %s before applying settings", async (mode, reservedEvent) => {
-        const { applySettings, events, scheduler } = createScheduler();
-
-        await expect(applySettingsWithScheduledInitialisation(scheduler, mode, applySettings)).resolves.toBe(true);
-
-        expect(events).toEqual([reservedEvent, "settings-applied"]);
-    });
-
-    it("reserves Fetch when existing settings activate an unconfigured device", async () => {
-        const { applySettings, events, scheduler } = createScheduler();
-
-        await expect(applySettingsAndFetchOnActivation(scheduler, false, true, applySettings)).resolves.toBe(true);
-
-        expect(events).toEqual(["fetch-reserved", "settings-applied"]);
-    });
-
-    it("applies an ordinary configured-device edit without scheduling initialisation", async () => {
-        const { applySettings, events, scheduler } = createScheduler();
-
-        await expect(applySettingsAndFetchOnActivation(scheduler, true, true, applySettings)).resolves.toBe(true);
-
-        expect(events).toEqual(["settings-applied"]);
-        expect(scheduler.scheduleFetch).not.toHaveBeenCalled();
-        expect(scheduler.scheduleRebuild).not.toHaveBeenCalled();
+    it("reserves Fetch or Rebuild before applying settings", async () => {
+        const { scheduler, events } = createScheduler();
+        await applySettingsWithScheduledInitialisation(scheduler, "fetch", async () => {
+            events.push("settings-applied");
+        });
+        await applySettingsWithScheduledInitialisation(scheduler, "rebuild", async () => {
+            events.push("settings-applied");
+        });
+        expect(events).toEqual(["fetch-reserved", "settings-applied", "rebuild-reserved", "settings-applied"]);
     });
 
     it("does not apply settings when the scheduler cannot reserve its flag", async () => {

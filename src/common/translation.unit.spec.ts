@@ -5,7 +5,7 @@ import { englishMessages } from "@/common/messages/en";
 
 describe("English message catalogue", () => {
     it("resolves Red Sync keys to their English text", () => {
-        expect($msg("Welcome to Red Sync")).toBe(englishMessages["Welcome to Red Sync"]);
+        expect($msg("P2P.NoKnownPeers")).toBe(englishMessages["P2P.NoKnownPeers"]);
         expect($msg("Ui.SetupWizard.SelectNew.ManualOptionDesc")).toContain("Cloudflare R2");
     });
 

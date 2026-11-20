@@ -1,205 +1,91 @@
 import { App, Modal } from "@/deps.ts";
-import { DIFF_DELETE, DIFF_EQUAL, DIFF_INSERT } from "diff-match-patch";
-import {
-    CANCELLED,
-    LEAVE_TO_SUBSEQUENT,
-    type diff_result,
-    type FilePathWithPrefix,
-} from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { CANCELLED, LEAVE_TO_SUBSEQUENT, type diff_result, type FilePathWithPrefix } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { EVENT_CONFLICT_CANCELLED, EVENT_PLUGIN_UNLOADED, eventHub } from "@/common/events.ts";
-import { navigateDiffNodes } from "@/common/diffNavigation.ts";
 import { promiseWithResolvers } from "octagonal-wheels/promises";
-import { POSTPONED, type MergeDialogResult } from "@/serviceFeatures/interactiveConflictResolution/types";
+import {
+    KEEP_COPY,
+    POSTPONED,
+    splitByAge,
+    type MergeDialogResult,
+} from "@/serviceFeatures/interactiveConflictResolution/types";
 
 export { POSTPONED, type MergeDialogResult };
 
-export type ConflictResolveModalOptions = {
-    readOnly?: boolean;
-    title?: string;
-    localName?: string;
-    remoteName?: string;
-};
+function displayName(path: string): string {
+    return path.split("/").pop() ?? path;
+}
 
+/**
+ * Asks how to resolve a note which was changed on two devices and could not be
+ * merged automatically: merge both, keep both, or keep the newer version.
+ */
 export class ConflictResolveModal extends Modal {
-    result: diff_result;
-    filename: FilePathWithPrefix;
+    readonly result: diff_result;
+    readonly filename: FilePathWithPrefix;
 
     response: MergeDialogResult = CANCELLED;
-    isClosed = false;
     consumed = false;
     private readonly resultPromise = promiseWithResolvers<MergeDialogResult>();
-
-    title: string = "Conflicting changes";
-
-    pluginPickMode: boolean = false;
-    readOnly: boolean = false;
-    localName: string = "Base";
-    remoteName: string = "Conflicted";
     private eventSubscriptions?: AbortController;
-    currentDiffIndex = -1;
-    diffView!: HTMLDivElement;
-    diffNavIndicator!: HTMLSpanElement;
 
-    constructor(
-        app: App,
-        filename: FilePathWithPrefix,
-        diff: diff_result,
-        pluginPickMode?: boolean,
-        remoteName?: string,
-        options?: ConflictResolveModalOptions
-    ) {
+    constructor(app: App, filename: FilePathWithPrefix, diff: diff_result) {
         super(app);
         this.result = diff;
         this.filename = filename;
-        this.pluginPickMode = pluginPickMode || false;
-        this.readOnly = options?.readOnly ?? false;
-        if (this.pluginPickMode) {
-            this.title = "Pick a version";
-            this.remoteName = `${remoteName || "Remote"}`;
-            this.localName = "Local";
-        } else if (this.readOnly) {
-            this.title = options?.title ?? "Vault and database revision";
-            this.localName = options?.localName ?? "Vault file";
-            this.remoteName = options?.remoteName ?? "Database revision";
-        }
-    }
-
-    appendDiffFragment(container: HTMLDivElement, text: string, cls: string) {
-        const lines = text.split("\n");
-        lines.forEach((line, index) => {
-            const span = container.createSpan({ cls });
-            span.setText(line);
-            if (index < lines.length - 1) {
-                container.createSpan({ cls: "ls-mark-cr" });
-                container.createEl("br");
-            }
-        });
-    }
-
-    appendVersionInfo(container: HTMLDivElement, cls: string, name: string, date: string) {
-        const line = container.createSpan({ cls });
-        line.createSpan({ text: name, cls: "conflict-dev-name" });
-        line.appendText(`: ${date}`);
-        container.createEl("br");
-    }
-
-    navigateDiff(direction: "prev" | "next") {
-        navigateDiffNodes(this.diffView, ".added, .deleted", this, direction);
-    }
-
-    resetDiffNavigation() {
-        this.currentDiffIndex = -1;
-        const diffElements = this.diffView.querySelectorAll(".added, .deleted");
-        this.diffNavIndicator.setText(diffElements.length > 0 ? `0/${diffElements.length}` : "\u2014");
     }
 
     override onOpen() {
-        const { contentEl } = this;
         this.eventSubscriptions?.abort();
         const eventSubscriptions = new AbortController();
         this.eventSubscriptions = eventSubscriptions;
-        eventHub.onceEvent(
-            EVENT_PLUGIN_UNLOADED,
-            () => {
-                this.sendResponse(CANCELLED);
+        eventHub.onceEvent(EVENT_PLUGIN_UNLOADED, () => this.sendResponse(CANCELLED), {
+            signal: eventSubscriptions.signal,
+        });
+        // Cancel an older dialogue for this path before subscribing this
+        // instance; emitting after subscription would close this one too.
+        eventHub.emitEvent(EVENT_CONFLICT_CANCELLED, this.filename);
+        eventHub.onEvent(
+            EVENT_CONFLICT_CANCELLED,
+            (path) => {
+                if (path === this.filename) this.sendResponse(CANCELLED);
             },
             { signal: eventSubscriptions.signal }
         );
-        if (!this.readOnly) {
-            // Cancel an older dialogue for this path before subscribing this
-            // instance. Emitting after subscription would close the replacement
-            // itself; the instance-owned result promise then completes the older
-            // caller even when it only begins waiting after this event.
-            eventHub.emitEvent(EVENT_CONFLICT_CANCELLED, this.filename);
-            eventHub.onEvent(
-                EVENT_CONFLICT_CANCELLED,
-                (path) => {
-                    if (path === this.filename) {
-                        this.sendResponse(CANCELLED);
-                    }
-                },
-                { signal: eventSubscriptions.signal }
-            );
-        }
-        this.titleEl.setText(this.title);
+
+        const { newer, older } = splitByAge(this.result);
+        const newerTime = new Date(newer.mtime).toLocaleString();
+        this.modalEl.addClass("dialog-host");
+        this.titleEl.setText("Changed on two devices");
+        const { contentEl } = this;
         contentEl.empty();
-        const diffOptionsRow = contentEl.createDiv("");
-        diffOptionsRow.addClass("diff-options-row");
-        diffOptionsRow.createSpan({ text: this.filename });
-
-        const diffNavContainer = diffOptionsRow.createDiv("");
-        diffNavContainer.addClass("diff-nav");
-        diffNavContainer.createEl("button", { text: "\u25B2 Prev" }, (e) => {
-            e.addClass("diff-nav-btn");
-            e.addEventListener("click", () => this.navigateDiff("prev"));
+        const body = contentEl.createDiv({ cls: "rs-setup" });
+        body.createEl("p", {
+            cls: "rs-setup-lead",
+            text: `"${displayName(this.filename)}" was edited on this device and on another device before they synced. What should be kept?`,
         });
-        diffNavContainer.createEl("button", { text: "\u25BC Next" }, (e) => {
-            e.addClass("diff-nav-btn");
-            e.addEventListener("click", () => this.navigateDiff("next"));
+        const choices = body.createDiv({ cls: "rs-choices" });
+        const addChoice = (title: string, description: string, result: MergeDialogResult) => {
+            choices.createEl("button", { cls: "rs-choice" }, (button) => {
+                button.createSpan({ cls: "rs-choice-title", text: title });
+                button.createSpan({ cls: "rs-choice-description", text: description });
+                button.addEventListener("click", () => this.sendResponse(result));
+            });
+        };
+        addChoice(
+            "Merge both",
+            "Keep the text from both versions in the note. You may need to tidy up any repeated lines.",
+            LEAVE_TO_SUBSEQUENT
+        );
+        addChoice(
+            "Keep both",
+            "Keep the newer version in the note and save the other one as a conflicted copy next to it.",
+            KEEP_COPY
+        );
+        addChoice("Keep newer", `Keep the version from ${newerTime} and discard the other one.`, older.rev);
+        const actions = body.createDiv({ cls: "rs-actions" });
+        actions.createEl("button", { text: "Decide later" }, (button) => {
+            button.addEventListener("click", () => this.sendResponse(POSTPONED));
         });
-        this.diffNavIndicator = diffNavContainer.createSpan({ text: "\u2014" });
-        this.diffNavIndicator.addClass("diff-nav-indicator");
-
-        this.diffView = contentEl.createDiv("");
-        this.diffView.addClass("op-scrollable");
-        this.diffView.addClass("ls-dialog");
-        let diffLength = 0;
-        for (const v of this.result.diff) {
-            const x1 = v[0];
-            const x2 = v[1];
-            diffLength += x2.length;
-            if (diffLength > 100 * 1024) {
-                continue;
-            }
-            if (x1 == DIFF_DELETE) {
-                this.appendDiffFragment(this.diffView, x2, "deleted");
-            } else if (x1 == DIFF_EQUAL) {
-                this.appendDiffFragment(this.diffView, x2, "normal");
-            } else if (x1 == DIFF_INSERT) {
-                this.appendDiffFragment(this.diffView, x2, "added");
-            }
-        }
-
-        const div2 = contentEl.createDiv("");
-        div2.addClass("ls-dialog");
-        const date1 =
-            new Date(this.result.left.mtime).toLocaleString() + (this.result.left.deleted ? " (Deleted)" : "");
-        const date2 =
-            new Date(this.result.right.mtime).toLocaleString() + (this.result.right.deleted ? " (Deleted)" : "");
-        this.appendVersionInfo(div2, "deleted", this.localName, date1);
-        this.appendVersionInfo(div2, "added", this.remoteName, date2);
-        const actionContainer = contentEl.createDiv("conflict-action-container");
-        if (this.readOnly) {
-            actionContainer.createEl("button", { text: "Close" }, (e) => {
-                e.addClass("conflict-action-button");
-                e.addEventListener("click", () => this.sendResponse(CANCELLED));
-            });
-        } else {
-            actionContainer.createEl("button", { text: `Use ${this.localName}` }, (e) => {
-                e.addClass("conflict-action-button");
-                e.addEventListener("click", () => this.sendResponse(this.result.right.rev));
-            });
-            actionContainer.createEl("button", { text: `Use ${this.remoteName}` }, (e) => {
-                e.addClass("conflict-action-button");
-                e.addEventListener("click", () => this.sendResponse(this.result.left.rev));
-            });
-            if (!this.pluginPickMode) {
-                actionContainer.createEl("button", { text: "Concat both" }, (e) => {
-                    e.addClass("conflict-action-button");
-                    e.addEventListener("click", () => this.sendResponse(LEAVE_TO_SUBSEQUENT));
-                });
-            }
-            actionContainer.createEl("button", { text: !this.pluginPickMode ? "Not now" : "Cancel" }, (e) => {
-                e.addClass("conflict-action-button");
-                e.addEventListener("click", () => this.sendResponse(this.pluginPickMode ? CANCELLED : POSTPONED));
-            });
-        }
-        if (diffLength > 100 * 1024) {
-            this.diffView.empty();
-            this.diffView.setText("(Too large diff to display)");
-        }
-        this.resetDiffNavigation();
-        this.navigateDiff("next");
     }
 
     sendResponse(result: MergeDialogResult) {
@@ -208,13 +94,10 @@ export class ConflictResolveModal extends Modal {
     }
 
     override onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
+        this.contentEl.empty();
         this.eventSubscriptions?.abort();
         this.eventSubscriptions = undefined;
-        if (this.consumed) {
-            return;
-        }
+        if (this.consumed) return;
         this.consumed = true;
         this.resultPromise.resolve(this.response);
     }

@@ -24,18 +24,15 @@ import type { ObsidianServiceContext } from "@/modules/services/ObsidianServiceC
 import { LiveSyncBaseCore } from "./LiveSyncBaseCore.ts";
 import { SetupManager } from "./modules/features/SetupManager.ts";
 import { useOfflineScanner } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
-import { useRemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/remoteConfig";
-import { useCheckRemoteSize } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/checkRemoteSize";
+import { useBucketSizeWarning } from "./serviceFeatures/bucketSizeWarning.ts";
 import { useRedFlagFeatures } from "./serviceFeatures/redFlag.ts";
 import { useSetupProtocolFeature } from "./serviceFeatures/setupObsidian/setupProtocol.ts";
 import { useSetupQRCodeFeature } from "@/serviceFeatures/setupObsidian/qrCode";
 import { useSetupURIFeature } from "@/serviceFeatures/setupObsidian/setupUri";
 import {
-    showOnboardingInvitation,
     useSetupManagerHandlersFeature,
 } from "./serviceFeatures/setupObsidian/setupManagerHandlers.ts";
 import { useCompatibilityReview } from "./serviceFeatures/compatibilityReview.ts";
-import { createObsidianCompatibilityReviewUi } from "./serviceFeatures/compatibilityReviewObsidian.ts";
 import { createFileReflectionProvenance } from "./serviceModules/FileReflectionProvenance.ts";
 import { useInteractiveConflictResolutionFeature } from "./serviceFeatures/interactiveConflictResolution";
 import { ConflictResolveModal } from "./modules/features/InteractiveConflictResolving/ConflictResolveModal.ts";
@@ -172,7 +169,6 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                 const setupManager = core.getModule(SetupManager);
                 useObsidianReplicationRibbonFeature(core);
                 useDatabaseDiagnosticsFeature(core);
-                useRemoteConfiguration(core);
 
                 useSetupProtocolFeature(core, setupManager);
                 useSetupQRCodeFeature(core);
@@ -180,18 +176,12 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                 useSetupManagerHandlersFeature(core, setupManager);
                 useOfflineScanner(core);
                 useRedFlagFeatures(core);
-                useCheckRemoteSize(core);
+                useBucketSizeWarning(core);
                 useInteractiveConflictResolutionFeature(core, (filename, conflictCheckResult) => {
                     return new ConflictResolveModal(this.app, filename, conflictCheckResult);
                 });
-                const compatibilityReview = useCompatibilityReview(
-                    core,
-                    createObsidianCompatibilityReviewUi(core.confirm)
-                );
-                useStartupLifecycleFeature(core, {
-                    inviteToOnboarding: () => showOnboardingInvitation(core, setupManager),
-                    waitForCompatibilityReview: () => compatibilityReview.openReview(),
-                });
+                useCompatibilityReview(core);
+                useStartupLifecycleFeature(core);
             },
             { recoverFileReflectionFailures: true }
         );

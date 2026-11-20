@@ -1,18 +1,13 @@
-import { $msg } from "@/common/translation";
-import type { Confirm } from "@vrtmrz/livesync-commonlib/compat/interfaces/Confirm";
+import { LOG_LEVEL_URGENT, Logger } from "octagonal-wheels/common/logger";
 import {
     ServiceRebuilder,
     type ServiceRebuilderDependencies,
 } from "@vrtmrz/livesync-commonlib/compat/serviceModules/Rebuilder";
 import { UnsupportedEncryptedDocumentFormatError } from "@vrtmrz/livesync-commonlib/replication";
-import { fireAndForget } from "octagonal-wheels/promises";
 
 export class ObsidianRebuilder extends ServiceRebuilder {
-    private readonly confirm: Confirm;
-
     constructor(services: ServiceRebuilderDependencies) {
         super(services);
-        this.confirm = services.UI.confirm;
     }
 
     /** Red Sync has no optional features (Customisation Sync, Hidden File Sync) to mention. */
@@ -33,26 +28,10 @@ export class ObsidianRebuilder extends ServiceRebuilder {
             await fetch;
         } catch (error) {
             if (UnsupportedEncryptedDocumentFormatError.findIn(error)) {
-                this.confirm.askInPopup("fetch-unsupported-e2ee-format", "Fetch stopped. {HERE}", (anchor) => {
-                    anchor.textContent = "View recovery steps";
-                    anchor.href = "#";
-                    anchor.addEventListener("click", (event) => {
-                        event.preventDefault();
-                        const rebuildActionLabel = $msg("Overwrite Server Data with This Device's Files");
-                        fireAndForget(() =>
-                            this.confirm.confirmWithMessage(
-                                "Fetch stopped",
-                                "The remote database contains data in an unsupported E2EE format.\n\n" +
-                                    "1. Confirm that another device's Vault contains all the files and changes you need.\n" +
-                                    "2. Please back up the Vaults and the remote database. On that other device, " +
-                                    `use **${rebuildActionLabel}** to rebuild the remote database.\n` +
-                                    "3. Run Fetch again on this device.",
-                                ["Close"],
-                                "Close"
-                            )
-                        );
-                    });
-                });
+                Logger(
+                    "The download stopped: the data in R2 uses an encryption format Red Sync cannot read. On a device which has all your notes, use 'Overwrite R2 with this device', then download again here.",
+                    LOG_LEVEL_URGENT
+                );
             }
             throw error;
         }

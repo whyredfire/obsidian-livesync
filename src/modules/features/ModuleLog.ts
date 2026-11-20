@@ -488,7 +488,10 @@ export class ModuleLog extends AbstractObsidianModule {
 # ---- Debug Info Dump ----
 ${stringifyYaml(info)}
 \`\`\`\``;
-                if (await this.services.UI.promptCopyToClipboard("Debug info", yaml)) {
+                if (
+                    (await this.services.UI.promptCopyToClipboard("Debug info", yaml)) &&
+                    !this.services.context.notificationsSilenced
+                ) {
                     new Notice(
                         "Debug report copied to the clipboard. Credentials are redacted, but review it before sharing."
                     );
@@ -603,8 +606,9 @@ ${stringifyYaml(info)}
         }
         this.logLines.push({ ttl: now.getTime() + 3000, message: newMessage });
 
-        // Notifications are opt-in ('Show stats for nerds'); urgent messages always appear.
-        if (level >= LOG_LEVEL_URGENT || (level >= LOG_LEVEL_NOTICE && this.statsForNerds)) {
+        // Notifications are opt-in ('Show stats for nerds'); urgent messages appear unless silenced.
+        const notify = level >= LOG_LEVEL_URGENT || (level >= LOG_LEVEL_NOTICE && this.statsForNerds);
+        if (notify && !this.services.context.notificationsSilenced) {
             if (!key) key = messageContent;
             if (key in this.notifies) {
                 if (key == messageContent) {

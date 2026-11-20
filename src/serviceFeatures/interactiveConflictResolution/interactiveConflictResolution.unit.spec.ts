@@ -16,7 +16,7 @@ import {
     createInteractiveConflictResolutionOperations,
     type InteractiveConflictResolutionOperationsDependencies,
 } from "./operations";
-import { POSTPONED, type ConflictResolveDialogueFactory, type MergeDialogResult } from "./types";
+import { KEEP_COPY, POSTPONED, type ConflictResolveDialogueFactory, type MergeDialogResult } from "./types";
 import { useInteractiveConflictResolutionFeature } from "./index";
 
 const path = "note.md" as FilePathWithPrefix;
@@ -49,6 +49,8 @@ function createOperations(
     const resolveByDeletingRevision = vi.fn(async () => AUTO_MERGED);
     const getConflictedRevs = vi.fn(async () => conflictedRevisions);
     const storeContent = vi.fn(async () => true);
+    const isExists = vi.fn(async (_path: string) => false);
+    const writeFileAuto = vi.fn(async (_path: string, _data: string) => true);
     const isSuspended = vi.fn(() => false);
     const getActiveFilePath = vi.fn((): FilePathWithPrefix | undefined => path);
     const replicateUnattendedByEvent = vi.fn(async () => ({ status: "completed" as const }));
@@ -61,6 +63,7 @@ function createOperations(
             getConflictedRevs,
             storeContent,
         },
+        storageAccess: { isExists, writeFileAuto },
         localDatabase: () => ({ getDBEntry, findAllDocs }),
         confirm: {
             askSelectString,
@@ -111,6 +114,8 @@ function createOperations(
         replicateUnattendedByEvent,
         resolveByDeletingRevision,
         storeContent,
+        isExists,
+        writeFileAuto,
         conflictedRevisions,
     };
 }
@@ -969,6 +974,37 @@ describe("interactive conflict resolution operations", () => {
         expect(fixture.queueCheckFor).toHaveBeenCalledWith(path);
     });
 
+    it("keeps the newer version and saves the older one as a conflicted copy", async () => {
+        const fixture = createOperations();
+        const dated: diff_result = {
+            left: { rev: "2-left", data: "newer text", ctime: 1, mtime: Date.UTC(2026, 10, 21, 9, 30) },
+            right: { rev: "2-right", data: "older text", ctime: 1, mtime: Date.UTC(2026, 10, 21, 8, 15) },
+            diff: [],
+        };
+        fixture.dialogueResult.value = KEEP_COPY;
+        fixture.getDBEntry.mockResolvedValue({ _rev: "2-left", _conflicts: ["2-right"] });
+        fixture.isExists.mockResolvedValueOnce(true).mockResolvedValue(false);
+
+        await fixture.operations.resolveByUserInteraction(path, dated);
+
+        const [copyPath, copyData] = fixture.writeFileAuto.mock.calls[0] ?? [];
+        expect(copyPath).toMatch(/^note \(Conflicted copy \d{12} 2\)\.md$/);
+        expect(copyData).toBe("older text");
+        expect(fixture.resolveByDeletingRevision).toHaveBeenCalledWith(path, "2-right", "UI Kept a copy");
+        expect(fixture.queueCheckFor).toHaveBeenCalledWith(path);
+    });
+
+    it("does not discard the older version when its copy cannot be saved", async () => {
+        const fixture = createOperations();
+        fixture.dialogueResult.value = KEEP_COPY;
+        fixture.getDBEntry.mockResolvedValue({ _rev: "2-left", _conflicts: ["2-right"] });
+        fixture.writeFileAuto.mockResolvedValue(false);
+
+        await fixture.operations.resolveByUserInteraction(path, conflict);
+
+        expect(fixture.resolveByDeletingRevision).not.toHaveBeenCalled();
+    });
+
     it("requeues without replication while the app is suspended", async () => {
         const fixture = createOperations();
         fixture.dialogueResult.value = "2-right";
@@ -1037,7 +1073,7 @@ describe("interactive conflict resolution operations", () => {
         expect(fixture.ensureAllProcessed).not.toHaveBeenCalled();
     });
 
-    it("reports conflicted documents and wires the startup popup action", async () => {
+    it("lists conflicted documents in the log without a start-up pop-up", async () => {
         const fixture = createOperations();
         fixture.findAllDocs.mockImplementation(() =>
             documents([
@@ -1049,28 +1085,10 @@ describe("interactive conflict resolution operations", () => {
 
         await expect(fixture.operations.scanStartupIssues()).resolves.toBe(true);
 
-        expect(fixture.askInPopup).toHaveBeenCalledWith(
-            "conflicting-detected-on-safety",
-            expect.stringContaining("Some files have been left conflicted!"),
-            expect.any(Function)
-        );
+        expect(fixture.askInPopup).not.toHaveBeenCalled();
         expect(fixture.log).toHaveBeenCalledWith("Conflicted: first.md");
         expect(fixture.log).toHaveBeenCalledWith("Conflicted: second.md");
         expect(fixture.log).not.toHaveBeenCalledWith("Conflicted: ordinary.md");
-
-        const popupAction = fixture.askInPopup.mock.calls[0]?.[2] as (anchor: HTMLAnchorElement) => void;
-        const addEventListener = vi.fn();
-        const anchor = { text: "", addEventListener } as unknown as HTMLAnchorElement;
-        popupAction(anchor);
-
-        expect(anchor.text).toBe("HERE");
-        expect(addEventListener).toHaveBeenCalledWith("click", expect.any(Function));
-
-        const clickHandler = addEventListener.mock.calls[0]?.[1] as () => void;
-        clickHandler();
-        await vi.waitFor(() =>
-            expect(fixture.askSelectString).toHaveBeenCalledWith("File to resolve conflict", ["second.md", "first.md"])
-        );
     });
 });
 
@@ -1163,6 +1181,7 @@ function createFeatureHarness(
             getConflictedRevs,
             storeContent: vi.fn(async () => true),
         },
+        storageAccess: { isExists: vi.fn(async () => false), writeFileAuto: vi.fn(async () => true) },
     };
     const createDialogue =
         createDialogueForContext?.(context) ??

@@ -27,7 +27,7 @@ vi.mock("@vrtmrz/livesync-commonlib/p2p", () => ({ EVENT_P2P_DIAGNOSTIC: "p2p-di
 
 const cleanups: (() => void)[] = [];
 
-async function createHarness(statsForNerds = false) {
+async function createHarness(statsForNerds = false, notificationsSilenced = false) {
     const { ModuleLog } = await import("./ModuleLog.ts");
     const { reactiveSource } = await import("octagonal-wheels/dataobject/reactive");
     const { createLiveSyncEventHub } = await import("@vrtmrz/livesync-commonlib/context");
@@ -49,7 +49,7 @@ async function createHarness(statsForNerds = false) {
             responseCount: reactiveSource(0),
             registerCleanup: (cleanup: () => void) => cleanups.push(cleanup),
         },
-        context: { events: createLiveSyncEventHub(), notices: { show: vi.fn(), hide: vi.fn() } },
+        context: { events: createLiveSyncEventHub(), notices: { show: vi.fn(), hide: vi.fn() }, notificationsSilenced },
         setting: { statsForNerds },
         vault: { getVaultName: () => "vault" },
         appLifecycle: { isReloadingScheduled: () => false },
@@ -152,5 +152,13 @@ describe("stats for nerds", () => {
         const nerd = await createHarness(true);
         nerd.module.__addLog("Rebuild everything operation completed.", LOG_LEVEL_NOTICE);
         expect(nerd.services.context.notices.show).toHaveBeenCalledOnce();
+    });
+
+    it("shows no notices at all while notifications are silenced", async () => {
+        const { LOG_LEVEL_NOTICE, LOG_LEVEL_URGENT } = await import("octagonal-wheels/common/logger");
+        const silenced = await createHarness(true, true);
+        silenced.module.__addLog("Rebuild everything operation completed.", LOG_LEVEL_NOTICE);
+        silenced.module.__addLog("Something needs attention", LOG_LEVEL_URGENT);
+        expect(silenced.services.context.notices.show).not.toHaveBeenCalled();
     });
 });

@@ -34,8 +34,17 @@ import { KeyedNoticeManager } from "@vrtmrz/obsidian-plugin-kit/notice";
 export class ObsidianServiceHub extends InjectableServiceHub<ObsidianServiceContext> {
     constructor(plugin: ObsidianLiveSyncPlugin) {
         const notices = new KeyedNoticeManager();
-        const noticeGroups = new ObsidianNoticeGroupManager();
-        const context = new ObsidianServiceContext(plugin.app, plugin, plugin, notices, noticeGroups);
+        const noticeGroups: ObsidianNoticeGroupManager = new ObsidianNoticeGroupManager(
+            undefined,
+            (): boolean => context.notificationsSilenced
+        );
+        const context: ObsidianServiceContext = new ObsidianServiceContext(
+            plugin.app,
+            plugin,
+            plugin,
+            notices,
+            noticeGroups
+        );
 
         const API = new ObsidianAPIService(context);
         const conflict = new ObsidianConflictService(context);

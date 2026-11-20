@@ -23,6 +23,21 @@ export type SetupFormValues = {
     usePathObfuscation: boolean;
 };
 
+/** The form values for an existing connection, so that "Change" starts from what is configured. */
+export function setupFormValuesFrom(settings: ObsidianLiveSyncSettings): SetupFormValues {
+    return {
+        endpoint: settings.endpoint ?? "",
+        accessKey: settings.accessKey ?? "",
+        secretKey: settings.secretKey ?? "",
+        bucket: settings.bucket ?? "",
+        bucketPrefix: settings.bucketPrefix ?? "",
+        sizeWarning: Math.max(0, settings.notifyThresholdOfRemoteStorageSize ?? 0),
+        encrypt: !!settings.encrypt,
+        passphrase: settings.encrypt ? (settings.passphrase ?? "") : "",
+        usePathObfuscation: settings.encrypt ? !!settings.usePathObfuscation : true,
+    };
+}
+
 export function emptySetupFormValues(): SetupFormValues {
     return {
         endpoint: "",

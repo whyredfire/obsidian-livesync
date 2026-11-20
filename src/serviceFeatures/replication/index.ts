@@ -146,13 +146,10 @@ export function createReplicationFeature<TContext extends ServiceContext, TComma
         const onlinePreflight = createOnlineReplicationPreflight(unresolvedErrorManager, preflightContext);
         const securitySeedPreflight = createSecuritySeedPreflight(unresolvedErrorManager, preflightContext);
         const centralCompatibilityRecovery = createCentralCompatibilityRecovery({
-            confirm: core.confirm,
             rebuilder: core.rebuilder,
             services: {
                 appLifecycle: services.appLifecycle,
-                replicator: services.replicator,
                 setting: services.setting,
-                tweakValue: services.tweakValue,
             },
         });
 

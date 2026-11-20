@@ -12,6 +12,7 @@ import { RED_SYNC_ENFORCED_SETTINGS } from "@/common/core/settings/newVaultSetti
 import { EVENT_STATS_FOR_NERDS_CHANGED } from "@/common/events.ts";
 
 const STATS_FOR_NERDS_KEY = "redSyncStatsForNerds";
+const SILENCE_NOTIFICATIONS_KEY = "redSyncSilenceNotifications";
 
 /** Whether detailed notifications and synchronisation statistics are shown on this device. */
 export function getStatsForNerds(setting: SettingService<ObsidianServiceContext>): boolean {
@@ -23,6 +24,18 @@ export async function setStatsForNerds(
     enabled: boolean
 ): Promise<void> {
     await (setting as ObsidianSettingService<ObsidianServiceContext>).setStatsForNerds(enabled);
+}
+
+/** Whether Red Sync shows no notices at all on this device. */
+export function getSilenceNotifications(setting: SettingService<ObsidianServiceContext>): boolean {
+    return (setting as Partial<ObsidianSettingService<ObsidianServiceContext>>).silenceNotifications === true;
+}
+
+export async function setSilenceNotifications(
+    setting: SettingService<ObsidianServiceContext>,
+    enabled: boolean
+): Promise<void> {
+    await (setting as ObsidianSettingService<ObsidianServiceContext>).setSilenceNotifications(enabled);
 }
 
 /**
@@ -52,6 +65,17 @@ export class ObsidianSettingService<T extends ObsidianServiceContext> extends Se
         await this.config.setObject(STATS_FOR_NERDS_KEY, enabled);
         this._statsForNerds = enabled;
         this.context.events.emitEvent(EVENT_STATS_FOR_NERDS_CHANGED);
+    }
+
+    get silenceNotifications(): boolean {
+        return this.context.notificationsSilenced;
+    }
+
+    async setSilenceNotifications(enabled: boolean): Promise<void> {
+        if (this.context.notificationsSilenced === enabled) return;
+        await this.config.setObject(SILENCE_NOTIFICATIONS_KEY, enabled);
+        this.context.notificationsSilenced = enabled;
+        if (enabled) this.context.notices.hideAll();
     }
 
     constructor(context: T, dependencies: SettingServiceDependencies) {
@@ -93,6 +117,7 @@ export class ObsidianSettingService<T extends ObsidianServiceContext> extends Se
     override async loadSettings(): Promise<void> {
         await super.loadSettings();
         this._statsForNerds = (await this.config.getObject(STATS_FOR_NERDS_KEY)) === true;
+        this.context.notificationsSilenced = (await this.config.getObject(SILENCE_NOTIFICATIONS_KEY)) === true;
         this.context.events.emitEvent(EVENT_STATS_FOR_NERDS_CHANGED);
     }
 

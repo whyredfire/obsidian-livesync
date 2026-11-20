@@ -1,410 +1,108 @@
-import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
-import { LOG_LEVEL_INFO, LOG_LEVEL_NOTICE, LOG_LEVEL_VERBOSE } from "octagonal-wheels/common/logger";
+import { LOG_LEVEL_INFO, LOG_LEVEL_NOTICE, LOG_LEVEL_URGENT, LOG_LEVEL_VERBOSE } from "octagonal-wheels/common/logger";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { createInstanceLogFunction, type LogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
 import {
     FlagFilesHumanReadable,
     FlagFilesOriginal,
 } from "@vrtmrz/livesync-commonlib/compat/common/models/redflag.const";
-import FetchEverything from "@/modules/features/SetupWizard/dialogs/FetchEverything.svelte";
-import RebuildEverything from "@/modules/features/SetupWizard/dialogs/RebuildEverything.svelte";
-import { REMOTE_MINIO } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.const";
-import { assessTweakCompatibility, type ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/settings";
 import { RemotePreferredTweakStatuses } from "@vrtmrz/livesync-commonlib/compat/common/models/tweak.definition";
-import type {
-    FetchEverythingResult,
-    RebuildEverythingResult,
-} from "@/modules/features/SetupWizard/dialogs/setupDialogTypes";
-import { askAndPerformFastSetupOnScheduledFetchAll } from "./redFlag.simpleFetch";
-import { deleteFetchFlags } from "./redFlag.fetchState";
-import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
-import { activateRemoteConfiguration } from "@vrtmrz/livesync-commonlib/remote-configurations";
-import { $msg } from "@/common/translation";
+import { assessTweakCompatibility } from "@vrtmrz/livesync-commonlib/settings";
+import { UnresolvedErrorManager } from "@vrtmrz/livesync-commonlib/compat/services/base/UnresolvedErrorManager";
+import {
+    ExtraOnLocal,
+    FullScanModes,
+    normaliseFullScanOptions,
+    synchroniseAllFilesBetweenDBandStorage,
+} from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
 import { clearPendingSetup, readPendingSetup } from "./setupObsidian/pendingSetup";
 import { RED_SYNC_SYNC_TRIGGERS } from "@/common/core/settings/newVaultSettings";
 
-/**
- * Flag file handler interface, similar to target filter pattern.
+/*
+ * Fetch ("download everything from R2") and Rebuild ("upload this vault to R2")
+ * are scheduled by writing a flag file and restarting. On the next start-up they
+ * run here without asking anything: the user already confirmed them, or Red Sync
+ * scheduled a Fetch itself because another device replaced the data in R2.
+ *
+ * - Fetch merges: the newer copy of each file wins and files which exist only on
+ *   this device are kept, exactly like "Join an existing sync".
+ * - Rebuild uploads this vault with this device's settings.
+ * - If R2 cannot be reached, the flag stays and the operation runs again at the
+ *   next start-up.
+ * - Afterwards automatic synchronisation is switched on.
  */
-interface FlagFileHandler {
-    priority: number;
-    check: () => Promise<boolean>;
-    handle: () => Promise<boolean>;
-}
 
 type InitialisationOperation = "fetch" | "rebuild";
 
-export async function isFlagFileExist(host: NecessaryServices<never, "storageAccess">, path: string) {
-    const redFlagExist = await host.serviceModules.storageAccess.isExists(
-        host.serviceModules.storageAccess.normalisePath(path)
-    );
-    if (redFlagExist) {
-        return true;
+type RedFlagHost = NecessaryServices<
+    "API" | "appLifecycle" | "setting" | "tweakValue" | "fileProcessing" | "vault" | "path" | "keyValueDB" | "database",
+    "storageAccess" | "rebuilder" | "fileHandler"
+>;
+
+const FLAG_FILES: Record<InitialisationOperation, readonly string[]> = {
+    fetch: [FlagFilesOriginal.FETCH_ALL, FlagFilesHumanReadable.FETCH_ALL],
+    rebuild: [FlagFilesOriginal.REBUILD_ALL, FlagFilesHumanReadable.REBUILD_ALL],
+};
+
+async function isFlagged(host: NecessaryServices<never, "storageAccess">, operation: InitialisationOperation) {
+    const storage = host.serviceModules.storageAccess;
+    for (const name of FLAG_FILES[operation]) {
+        if (await storage.isExists(storage.normalisePath(name))) return true;
     }
     return false;
 }
 
-export async function deleteFlagFile(host: NecessaryServices<never, "storageAccess">, log: LogFunction, path: string) {
-    try {
-        const isFlagged = await host.serviceModules.storageAccess.isExists(
-            host.serviceModules.storageAccess.normalisePath(path)
-        );
-        if (isFlagged) {
-            await host.serviceModules.storageAccess.delete(path, true);
-        }
-    } catch (ex) {
-        log(`Could not delete ${path}`);
-        log(ex, LOG_LEVEL_VERBOSE);
+/** Remove every alias of the flag; throws if one cannot be removed, so the operation is not repeated silently. */
+async function deleteFlags(host: NecessaryServices<never, "storageAccess">, operation: InitialisationOperation) {
+    const storage = host.serviceModules.storageAccess;
+    for (const name of FLAG_FILES[operation]) {
+        const path = storage.normalisePath(name);
+        if (await storage.isExists(path)) await storage.delete(path, true);
+        if (await storage.isExists(path)) throw new Error(`Could not remove ${name}.`);
     }
-}
-const REMOTE_KEEP_CURRENT = "Use active remote";
-const REMOTE_CANCEL = "Cancel";
-async function askAndActivateRemoteDatabase(host: NecessaryServices<"UI" | "setting", never>, log: LogFunction) {
-    const settings = host.services.setting.currentSettings();
-    if (settings.remoteConfigurations && Object.keys(settings.remoteConfigurations).length > 1) {
-        const message =
-            "Multiple remote configurations detected. Please select the remote configuration you want to fetch from.";
-        const options = Object.entries(settings.remoteConfigurations).map(([id, config]) => {
-            const parsed = ConnectionStringParser.parse(config.uri);
-            const displayURI = (config.uri.split("@").pop() || "").substring(0, 20) + "..."; // Show only the last part of URI for better readability and privacy.
-            return {
-                name: `${config.name} - ${parsed.type} (${displayURI})`,
-                id: id,
-            };
-        });
-        options.push({
-            name: REMOTE_KEEP_CURRENT,
-            id: "keep_current",
-        });
-        options.push({
-            name: REMOTE_CANCEL,
-            id: "cancel",
-        });
-
-        const selections = options.map((option) => option.name);
-        // const defaultAction =
-        //     options.find((option) => option.id === settings.activeConfigurationId)?.name || selections[0];
-        const selectedId = await host.services.UI.confirm.askSelectStringDialogue(message, selections, {
-            title: "Select Remote Configuration",
-            defaultAction: REMOTE_KEEP_CURRENT,
-        });
-        const selectedConfig = options.find((option) => option.name === selectedId);
-        if (selectedConfig) {
-            if (selectedConfig.id === "keep_current") {
-                log(`Keeping current remote configuration.`, LOG_LEVEL_INFO);
-                return true;
-            }
-            if (selectedConfig.id === "cancel") {
-                log(`Remote configuration selection cancelled.`, LOG_LEVEL_NOTICE);
-                return false;
-            }
-            const activated = activateRemoteConfiguration(settings, selectedConfig.id);
-            if (activated) {
-                await host.services.setting.applyPartial(activated);
-                log(`Activated remote configuration: ${selectedConfig.name}`, LOG_LEVEL_INFO);
-                return true;
-            } else {
-                log(`Failed to activate remote configuration: ${selectedConfig.name}`, LOG_LEVEL_NOTICE);
-                return false;
-            }
-        } else {
-            log(`No remote configuration selected.`, LOG_LEVEL_NOTICE);
-            return false;
-        }
-    }
-    return true; // If there is only one or no remote configuration, proceed without asking.
-}
-/**
- * Factory function to create a fetch all flag handler.
- * All logic related to fetch all flag is encapsulated here.
- */
-export function createFetchAllFlagHandler(
-    host: NecessaryServices<
-        | "vault"
-        | "fileProcessing"
-        | "tweakValue"
-        | "UI"
-        | "setting"
-        | "appLifecycle"
-        | "path"
-        | "keyValueDB"
-        | "database",
-        "storageAccess" | "rebuilder" | "fileHandler"
-    >,
-    log: LogFunction
-): FlagFileHandler {
-    // Check if fetch all flag is active
-    const isFlagActive = async () =>
-        (await isFlagFileExist(host, FlagFilesOriginal.FETCH_ALL)) ||
-        (await isFlagFileExist(host, FlagFilesHumanReadable.FETCH_ALL));
-
-    // Cleanup fetch all flag files
-    const cleanupFlag = () => deleteFetchFlags(host);
-
-    // Handle the fetch all scheduled operation
-    const onScheduled = async () => {
-        // Select the remote database if there are multiple remotes configured.
-        const isRemoteActivated = await askAndActivateRemoteDatabase(host, log);
-        if (!isRemoteActivated) {
-            return await cancelScheduledInitialisation(host, cleanupFlag);
-        }
-
-        // Ask user for use Fast Setup
-        const useFastSetup = await askAndPerformFastSetupOnScheduledFetchAll(host, log, cleanupFlag);
-        if (useFastSetup !== undefined) {
-            return useFastSetup;
-        }
-        // if useFastSetup is undefined, it means user choose to proceed with normal fetch process, so continue to ask for fetch method.
-
-        const method =
-            await host.services.UI.dialogManager.openWithExplicitCancel<FetchEverythingResult>(FetchEverything);
-        if (method === "cancelled") {
-            log("Fetch everything cancelled by user.", LOG_LEVEL_NOTICE);
-            return await cancelScheduledInitialisation(host, cleanupFlag);
-        }
-        const { vault, extra } = method;
-        const settings = await Promise.resolve(host.services.setting.currentSettings());
-        // If remote is MinIO, makeLocalChunkBeforeSync is not available. (because no-deduplication on sending).
-        const makeLocalChunkBeforeSyncAvailable = settings.remoteType !== REMOTE_MINIO;
-        const mapVaultStateToAction = {
-            identical: {
-                makeLocalChunkBeforeSync: makeLocalChunkBeforeSyncAvailable,
-                makeLocalFilesBeforeSync: false,
-            },
-            independent: {
-                makeLocalChunkBeforeSync: false,
-                makeLocalFilesBeforeSync: false,
-            },
-            unbalanced: {
-                makeLocalChunkBeforeSync: false,
-                makeLocalFilesBeforeSync: true,
-            },
-            cancelled: {
-                makeLocalChunkBeforeSync: false,
-                makeLocalFilesBeforeSync: false,
-            },
-        } as const;
-
-        if (!(await adjustSettingToRemoteIfNeeded(host, log, extra, settings))) {
-            log("Fetch initialisation cancelled by user.", LOG_LEVEL_NOTICE);
-            return await cancelScheduledInitialisation(host, cleanupFlag);
-        }
-        return await processVaultInitialisation(
-            host,
-            log,
-            async () => {
-                const vaultStateToAction = mapVaultStateToAction[vault];
-                const { makeLocalChunkBeforeSync, makeLocalFilesBeforeSync } = vaultStateToAction;
-                log(
-                    `Fetching everything with settings: makeLocalChunkBeforeSync=${makeLocalChunkBeforeSync}, makeLocalFilesBeforeSync=${makeLocalFilesBeforeSync}`,
-                    LOG_LEVEL_INFO
-                );
-                await host.serviceModules.rebuilder.$fetchLocal(makeLocalChunkBeforeSync, !makeLocalFilesBeforeSync);
-                await cleanupFlag();
-                log("Fetch everything operation completed. Vault files will be gradually synced.", LOG_LEVEL_NOTICE);
-                return true;
-            },
-            "resume-on-success"
-        );
-    };
-
-    return {
-        priority: 10,
-        check: () => isFlagActive(),
-        handle: async () => {
-            try {
-                const res = await onScheduled();
-                if (res) {
-                    const resumed = await verifyAndUnlockSuspension(host, log);
-                    if (resumed) await completePendingSetup(host, log);
-                    return resumed;
-                }
-            } catch (ex) {
-                log(
-                    "Could not prepare or finish the scheduled fetch. File and database reflection remain suspended.",
-                    LOG_LEVEL_NOTICE
-                );
-                log(ex, LOG_LEVEL_VERBOSE);
-                await host.services.setting.applyPartial(
-                    {
-                        suspendFileWatching: true,
-                        suspendParseReplicationResult: true,
-                    },
-                    true
-                );
-            }
-            return false;
-        },
-    };
 }
 
 /**
- * Adjust setting to remote configuration.
- * @param config current configuration to retrieve remote preferred config
- * @param operation operation which will consume the selected configuration
- * @returns whether initialisation may continue.
+ * Check that R2 can be reached and, for a Fetch, adopt the synchronisation settings
+ * stored there (chunking and similar values every device must share). A Rebuild keeps
+ * this device's settings. Returns false when R2 cannot be reached.
  */
-export async function adjustSettingToRemote(
-    host: NecessaryServices<"tweakValue" | "UI" | "setting", never>,
+async function adoptRemoteSettings(
+    host: NecessaryServices<"tweakValue" | "setting", never>,
     log: LogFunction,
-    config: ObsidianLiveSyncSettings,
-    operation: InitialisationOperation = "fetch"
+    operation: InitialisationOperation
 ): Promise<boolean> {
-    while (true) {
-        const remoteResult = await host.services.tweakValue.fetchRemotePreferred(config);
-        if (remoteResult.status === RemotePreferredTweakStatuses.NOT_CONFIGURED) {
-            const useDeviceSettings = $msg("Use this device's settings");
-            const cancelInitialisation = $msg("Cancel");
-            log(`Remote synchronisation settings are not configured (${remoteResult.reason}).`, LOG_LEVEL_INFO);
-            const choice = await host.services.UI.confirm.askSelectStringDialogue(
-                $msg(
-                    "The selected remote has no saved synchronisation settings. This is normal for a new remote. Use this device's settings, or cancel if you expected existing settings."
-                ),
-                [useDeviceSettings, cancelInitialisation] as const,
-                {
-                    defaultAction: useDeviceSettings,
-                    timeout: 0,
-                    title: $msg("No Synchronisation Settings Found"),
-                }
-            );
-            return choice === useDeviceSettings;
-        }
-        if (remoteResult.status === RemotePreferredTweakStatuses.UNAVAILABLE) {
-            const retryRemoteSettings = $msg("Retry");
-            const useDeviceSettings = $msg("Use this device's settings");
-            const cancelInitialisation = $msg("Cancel");
-            log("Could not read synchronisation settings from the remote.", LOG_LEVEL_NOTICE);
-            log(remoteResult.error, LOG_LEVEL_VERBOSE);
-            if (operation === "rebuild") {
-                const choice = await host.services.UI.confirm.askSelectStringDialogue(
-                    $msg(
-                        "Could not read the remote's synchronisation settings. Retry, or continue the overwrite with this device's settings. A working connection is still required."
-                    ),
-                    [retryRemoteSettings, useDeviceSettings, cancelInitialisation] as const,
-                    {
-                        defaultAction: retryRemoteSettings,
-                        timeout: 0,
-                        title: $msg("Could Not Read Synchronisation Settings"),
-                    }
-                );
-                if (choice === retryRemoteSettings) continue;
-                return choice === useDeviceSettings;
-            }
-            const choice = await host.services.UI.confirm.askSelectStringDialogue(
-                $msg(
-                    "Could not read the remote's synchronisation settings. Check the connection and credentials, then retry."
-                ),
-                [retryRemoteSettings, cancelInitialisation] as const,
-                {
-                    defaultAction: retryRemoteSettings,
-                    timeout: 0,
-                    title: $msg("Could Not Read Synchronisation Settings"),
-                }
-            );
-            if (choice === retryRemoteSettings) continue;
-            return false;
-        }
-        if (remoteResult.status === RemotePreferredTweakStatuses.UNSUPPORTED) {
-            log("Remote synchronisation settings are not supported by this remote type.", LOG_LEVEL_INFO);
-            return true;
-        }
-
-        if (operation === "rebuild") {
-            // An overwrite makes this device authoritative for both the Vault contents and the
-            // shared synchronisation settings. The remote lookup above remains a connection
-            // preflight, but settings from the database which is about to be replaced must not
-            // overwrite intentional local changes such as enabling E2EE.
-            log("Rebuild will use this device's synchronisation settings.", LOG_LEVEL_NOTICE);
-            return true;
-        }
-
-        const remoteTweaks = remoteResult.values;
-        const assessment = assessTweakCompatibility(config, remoteTweaks);
-        if (assessment.alignment === "matched") {
-            log("Remote configuration matches local configuration. No changes applied.", LOG_LEVEL_NOTICE);
-        } else {
-            await host.services.UI.confirm.askSelectStringDialogue(
-                "Your settings differed slightly from the server's. The plug-in has supplemented the incompatible parts with the server settings!",
-                ["OK"] as const,
-                {
-                    defaultAction: "OK",
-                    timeout: 0,
-                }
-            );
-        }
-
-        config = {
-            ...config,
-            ...assessment.adoptPreferred.changes,
-        } satisfies ObsidianLiveSyncSettings;
-        await host.services.setting.applyExternalSettings(config, true);
-        log("Remote configuration applied.", LOG_LEVEL_NOTICE);
-        return true;
+    const config = host.services.setting.currentSettings();
+    const remote = await host.services.tweakValue.fetchRemotePreferred(config);
+    if (remote.status === RemotePreferredTweakStatuses.UNAVAILABLE) {
+        log("Could not reach the R2 bucket. Red Sync will try again at the next start-up.", LOG_LEVEL_URGENT);
+        log(remote.error, LOG_LEVEL_VERBOSE);
+        return false;
     }
+    if (operation === "rebuild" || remote.status !== RemotePreferredTweakStatuses.AVAILABLE) return true;
+    const assessment = assessTweakCompatibility(config, remote.values);
+    if (assessment.alignment !== "matched") {
+        await host.services.setting.applyExternalSettings({ ...config, ...assessment.adoptPreferred.changes }, true);
+        log("Adopted the synchronisation settings stored in R2.", LOG_LEVEL_INFO);
+    }
+    return true;
 }
 
-/**
- * Adjust setting to remote if needed.
- * @param extra result of dialogues that may contain preventFetchingConfig flag (e.g, from FetchEverything or RebuildEverything)
- * @param config current configuration to retrieve remote preferred config
- * @param operation operation which will consume the selected configuration
- */
-export async function adjustSettingToRemoteIfNeeded(
-    host: NecessaryServices<"tweakValue" | "UI" | "setting", never>,
-    log: LogFunction,
-    extra: { preventFetchingConfig: boolean } | null,
-    config: ObsidianLiveSyncSettings,
-    operation: InitialisationOperation = "fetch"
-): Promise<boolean> {
-    if (extra?.preventFetchingConfig) {
-        return true;
-    }
-
-    const canProceed = await adjustSettingToRemote(host, log, config, operation);
-    if (!canProceed) {
-        log("Remote configuration not applied.", LOG_LEVEL_NOTICE);
-    }
-    return canProceed;
-}
+type InitialisationSuspensionPolicy = "resume" | "keep-on-failure";
 
 /**
- * Cancel a scheduled Fetch or Rebuild without changing the selected automatic
- * synchronisation mode. The persisted Scram switches keep both reflection
- * directions paused until the existing start-up dialogue resumes them.
+ * Run a Vault initialisation with file watching and synchronisation suspended.
+ * @param suspensionPolicy `keep-on-failure` keeps both reflection directions suspended when the
+ * process fails, so a partly downloaded database is not synchronised; the flag stays and the
+ * operation runs again at the next start-up.
  */
-export async function cancelScheduledInitialisation(
-    host: NecessaryServices<"setting" | "appLifecycle", never>,
-    cleanupFlag: () => Promise<void>
-): Promise<false> {
-    await host.services.setting.applyPartial(
-        {
-            suspendFileWatching: true,
-            suspendParseReplicationResult: true,
-        },
-        true
-    );
-    await cleanupFlag();
-    host.services.appLifecycle.performRestart();
-    return false;
-}
-
-type InitialisationSuspensionPolicy = "resume" | "keep" | "keep-on-failure" | "resume-on-success";
-
-/**
- * Process Vault initialisation with file watching and synchronisation suspended.
- * @param proc Process to execute during initialisation. It returns true only when normal operation may resume.
- * @param suspensionPolicy Final file-reflection state. `keep-on-failure` controls both reflection directions so a partly completed Fast Setup remains isolated.
- * @returns The result of the process, or false if an error occurs.
- */
-export async function processVaultInitialisation(
+async function processVaultInitialisation(
     host: NecessaryServices<"setting", never>,
     log: LogFunction,
     proc: () => Promise<boolean>,
     suspensionPolicy: InitialisationSuspensionPolicy = "resume"
-) {
+): Promise<boolean> {
     let completed = false;
     try {
-        // Disable batch saving and file watching during initialisation.
         await host.services.setting.applyPartial({ batchSave: false }, false);
         await host.services.setting.suspendAllSync();
         await host.services.setting.suspendExtraSync();
@@ -414,218 +112,109 @@ export async function processVaultInitialisation(
                 : { suspendFileWatching: true },
             true
         );
-        try {
-            const result = await proc();
-            completed = result;
-            return result;
-        } catch (ex) {
-            log("Error during vault initialisation process.", LOG_LEVEL_NOTICE);
-            log(ex, LOG_LEVEL_VERBOSE);
-            return false;
-        }
+        completed = await proc();
+        return completed;
     } catch (ex) {
-        log("Error during vault initialisation.", LOG_LEVEL_NOTICE);
+        log("Could not finish preparing this device. Red Sync will try again at the next start-up.", LOG_LEVEL_URGENT);
         log(ex, LOG_LEVEL_VERBOSE);
         return false;
     } finally {
-        if (suspensionPolicy === "resume") {
-            await host.services.setting.applyPartial({ suspendFileWatching: false }, true);
-        } else if (suspensionPolicy === "keep") {
-            await host.services.setting.applyPartial({ suspendFileWatching: true }, true);
-        } else if (suspensionPolicy === "resume-on-success") {
-            // Detailed Fetch owns its database reflection state on success or cancellation.
-            await host.services.setting.applyPartial(
-                completed
-                    ? { suspendFileWatching: false }
-                    : { suspendFileWatching: true, suspendParseReplicationResult: true },
-                true
-            );
-        } else {
-            // Fast Setup owns both directions at this boundary. Reasserting the
-            // outcome also covers a late failure after finishRebuild started to
-            // resume reflection, and the legacy doNotSuspendOnFetching path.
-            await host.services.setting.applyPartial(
-                {
-                    suspendFileWatching: !completed,
-                    suspendParseReplicationResult: !completed,
-                },
-                true
-            );
-        }
-    }
-}
-
-/**
- * Finish a setup started from the setup form: switch automatic synchronisation
- * on and tell the user, once the upload or download has completed.
- */
-export async function completePendingSetup(
-    host: NecessaryServices<"setting" | "vault", never>,
-    log: LogFunction
-): Promise<void> {
-    const mode = await readPendingSetup(host);
-    if (!mode) return;
-    await clearPendingSetup(host);
-    await host.services.setting.applyPartial(RED_SYNC_SYNC_TRIGGERS, true);
-    log(
-        mode === "new"
-            ? "Red Sync is ready: this vault has been uploaded and automatic sync is on."
-            : "Red Sync is ready: your notes have been downloaded and automatic sync is on.",
-        LOG_LEVEL_URGENT
-    );
-}
-
-export async function verifyAndUnlockSuspension(
-    host: NecessaryServices<"setting" | "appLifecycle" | "UI", never>,
-    log: LogFunction
-) {
-    if (!host.services.setting.currentSettings().suspendFileWatching) {
-        return true;
-    }
-    if (
-        (await host.services.UI.confirm.askYesNoDialog(
-            "Do you want to resume file and database processing, and restart obsidian now?",
-            { defaultOption: "Yes", timeout: 15 }
-        )) != "yes"
-    ) {
-        // TODO: Confirm actually proceed to next process.
-        return true;
-    }
-    await host.services.setting.applyPartial({ suspendFileWatching: false }, true);
-    host.services.appLifecycle.performRestart();
-    return false;
-}
-
-/**
- * Factory function to create a rebuild flag handler.
- * All logic related to rebuild flag is encapsulated here.
- */
-export function createRebuildFlagHandler(
-    host: NecessaryServices<"setting" | "appLifecycle" | "UI" | "tweakValue" | "vault", "storageAccess" | "rebuilder">,
-    log: LogFunction
-) {
-    // Check if rebuild flag is active
-    const isFlagActive = async () =>
-        (await isFlagFileExist(host, FlagFilesOriginal.REBUILD_ALL)) ||
-        (await isFlagFileExist(host, FlagFilesHumanReadable.REBUILD_ALL));
-
-    // Cleanup rebuild flag files
-    const cleanupFlag = async () => {
-        await deleteFlagFile(host, log, FlagFilesOriginal.REBUILD_ALL);
-        await deleteFlagFile(host, log, FlagFilesHumanReadable.REBUILD_ALL);
-    };
-
-    // Handle the rebuild everything scheduled operation
-    const onScheduled = async () => {
-        const settings = host.services.setting.currentSettings();
-        // The setup form already confirmed this upload and keeps this device's settings.
-        const fromSetup = (await readPendingSetup(host)) === "new";
-        const method = fromSetup
-            ? ({ extra: { preventFetchingConfig: true } } as const)
-            : await host.services.UI.dialogManager.openWithExplicitCancel<RebuildEverythingResult>(RebuildEverything);
-        if (method === "cancelled") {
-            log("Rebuild everything cancelled by user.", LOG_LEVEL_NOTICE);
-            return await cancelScheduledInitialisation(host, cleanupFlag);
-        }
-        const { extra } = method;
-        if (!(await adjustSettingToRemoteIfNeeded(host, log, extra, settings, "rebuild"))) {
-            log("Rebuild initialisation cancelled by user.", LOG_LEVEL_NOTICE);
-            return await cancelScheduledInitialisation(host, cleanupFlag);
-        }
-        return await processVaultInitialisation(host, log, async () => {
-            await host.serviceModules.rebuilder.$rebuildEverything();
-            await cleanupFlag();
-            log("Rebuild everything operation completed.", LOG_LEVEL_NOTICE);
-            return true;
-        });
-    };
-
-    return {
-        priority: 20,
-        check: () => isFlagActive(),
-        handle: async () => {
-            const res = await onScheduled();
-            if (res) {
-                const resumed = await verifyAndUnlockSuspension(host, log);
-                if (resumed) await completePendingSetup(host, log);
-                return resumed;
-            }
-            return false;
-        },
-    };
-}
-
-/**
- * Factory function to create a suspend all flag handler.
- * All logic related to suspend flag is encapsulated here.
- */
-export function createSuspendFlagHandler(
-    host: NecessaryServices<"setting", "storageAccess">,
-    log: LogFunction
-): FlagFileHandler {
-    // Check if suspend flag is active
-    const isFlagActive = async () => await isFlagFileExist(host, FlagFilesOriginal.SUSPEND_ALL);
-
-    // Handle the suspend all scheduled operation
-    const onScheduled = async () => {
-        log("SCRAM is detected. All operations are suspended.", LOG_LEVEL_NOTICE);
-        return await processVaultInitialisation(
-            host,
-            log,
-            async () => {
-                log(
-                    "All operations are suspended as per SCRAM.\nLogs will be written to the file. This might be a performance impact.",
-                    LOG_LEVEL_NOTICE
-                );
-                await host.services.setting.applyPartial({ writeLogToTheFile: true }, true);
-                return Promise.resolve(false);
-            },
-            "keep"
+        await host.services.setting.applyPartial(
+            suspensionPolicy === "resume"
+                ? { suspendFileWatching: false }
+                : { suspendFileWatching: !completed, suspendParseReplicationResult: !completed },
+            true
         );
-    };
-
-    return {
-        priority: 5,
-        check: () => isFlagActive(),
-        handle: () => onScheduled(),
-    };
+    }
 }
 
-export function flagHandlerToEventHandler(flagHandler: FlagFileHandler) {
-    return async () => {
-        if (await flagHandler.check()) {
-            return await flagHandler.handle();
-        }
+/** Download everything from R2 and merge it with the files in this Vault. */
+async function downloadAndMerge(host: RedFlagHost, log: LogFunction): Promise<boolean> {
+    return await processVaultInitialisation(
+        host,
+        log,
+        async () => {
+            await host.serviceModules.rebuilder.$fetchLocalDBFast(false);
+            const errorManager = new UnresolvedErrorManager(host.services.appLifecycle, host.services.context.events);
+            const synchronised = await synchroniseAllFilesBetweenDBandStorage(
+                host,
+                log,
+                errorManager,
+                normaliseFullScanOptions({
+                    mode: FullScanModes.NEWER_WINS,
+                    extraOnLocal: ExtraOnLocal.APPEND_STORAGE_ONLY,
+                    showingNotice: true,
+                    omitEvents: true,
+                    ignoreSuspending: true,
+                })
+            );
+            if (!synchronised) {
+                log("Some files could not be synchronised; they are listed in the log.", LOG_LEVEL_NOTICE);
+            }
+            if (!(await host.serviceModules.rebuilder.finishRebuild())) {
+                throw new Error("Could not finalise the downloaded database.");
+            }
+            await deleteFlags(host, "fetch");
+            return true;
+        },
+        "keep-on-failure"
+    );
+}
+
+/** Upload this Vault to R2, replacing what is there. */
+async function uploadEverything(host: RedFlagHost, log: LogFunction): Promise<boolean> {
+    return await processVaultInitialisation(host, log, async () => {
+        await host.serviceModules.rebuilder.$rebuildEverything();
+        await deleteFlags(host, "rebuild");
         return true;
-    };
+    });
 }
 
-export function useRedFlagFeatures(
-    host: NecessaryServices<
-        | "API"
-        | "appLifecycle"
-        | "UI"
-        | "setting"
-        | "tweakValue"
-        | "fileProcessing"
-        | "vault"
-        | "path"
-        | "keyValueDB"
-        | "database",
-        "storageAccess" | "rebuilder" | "fileHandler"
-    >
-) {
+/**
+ * Switch automatic synchronisation on after a completed Fetch or Rebuild, and say
+ * so once when the operation came from the setup form.
+ */
+async function completeInitialisation(
+    host: NecessaryServices<"setting" | "vault", never>,
+    log: LogFunction,
+    operation: InitialisationOperation
+): Promise<void> {
+    const fromSetup = await readPendingSetup(host);
+    if (fromSetup) await clearPendingSetup(host);
+    await host.services.setting.applyPartial(RED_SYNC_SYNC_TRIGGERS, true);
+    if (fromSetup) {
+        log(
+            fromSetup === "new"
+                ? "Red Sync is ready: this vault has been uploaded and automatic sync is on."
+                : "Red Sync is ready: your notes have been downloaded and automatic sync is on.",
+            LOG_LEVEL_URGENT
+        );
+        return;
+    }
+    log(
+        operation === "fetch"
+            ? "Downloaded everything from R2 and merged it with this vault. Automatic sync is on."
+            : "Uploaded this vault to R2. Automatic sync is on.",
+        LOG_LEVEL_NOTICE
+    );
+}
+
+/** Run a scheduled Fetch or Rebuild, if one is flagged. Returns false when start-up should not continue. */
+export async function runScheduledInitialisation(
+    host: RedFlagHost,
+    log: LogFunction,
+    operation: InitialisationOperation
+): Promise<boolean> {
+    if (!(await isFlagged(host, operation))) return true;
+    log(operation === "fetch" ? "Downloading everything from R2." : "Uploading this vault to R2.", LOG_LEVEL_NOTICE);
+    if (!(await adoptRemoteSettings(host, log, operation))) return false;
+    const done = operation === "fetch" ? await downloadAndMerge(host, log) : await uploadEverything(host, log);
+    if (done) await completeInitialisation(host, log, operation);
+    return done;
+}
+
+export function useRedFlagFeatures(host: RedFlagHost) {
     const log = createInstanceLogFunction("SF:RedFlag", host.services.API);
-    const handlerFetch = createFetchAllFlagHandler(host, log);
-    const handlerRebuild = createRebuildFlagHandler(host, log);
-    const handlerSuspend = createSuspendFlagHandler(host, log);
-    host.services.appLifecycle.onLayoutReady.addHandler(flagHandlerToEventHandler(handlerFetch), handlerFetch.priority);
-    host.services.appLifecycle.onLayoutReady.addHandler(
-        flagHandlerToEventHandler(handlerRebuild),
-        handlerRebuild.priority
-    );
-    host.services.appLifecycle.onLayoutReady.addHandler(
-        flagHandlerToEventHandler(handlerSuspend),
-        handlerSuspend.priority
-    );
+    host.services.appLifecycle.onLayoutReady.addHandler(() => runScheduledInitialisation(host, log, "fetch"), 10);
+    host.services.appLifecycle.onLayoutReady.addHandler(() => runScheduledInitialisation(host, log, "rebuild"), 20);
 }
