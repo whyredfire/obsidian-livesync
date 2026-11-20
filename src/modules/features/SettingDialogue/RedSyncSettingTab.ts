@@ -15,6 +15,8 @@ import { encodeSetupSettingsAsQR } from "@/serviceFeatures/setupObsidian/qrCode.
 import { VIEW_TYPE_LOG } from "@/modules/features/Log/LogPaneView.ts";
 import {
     isAutomaticSyncEnabled,
+    isValidPeriodicSyncSeconds,
+    MINIMUM_PERIODIC_SYNC_SECONDS,
     RED_SYNC_SYNC_TRIGGERS,
     RED_SYNC_SYNC_TRIGGERS_OFF,
 } from "@/common/core/settings/newVaultSettings.ts";
@@ -183,7 +185,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Automatic sync")
             .setDesc(
-                "Synchronise at start-up, when a file is opened, and a few seconds after changes are saved. Fetching or overwriting turns this off; turn it on again once your files look right."
+                "Synchronise at start-up, when a file is opened, a few seconds after changes are saved, and on the schedule below. Fetching or overwriting turns this off; turn it on again once your files look right."
             )
             .addToggle((toggle) =>
                 toggle.setValue(isAutomaticSyncEnabled(settings)).onChange((enabled) =>
@@ -196,6 +198,28 @@ export class RedSyncSettingTab extends PluginSettingTab {
                     })
                 )
             );
+        new Setting(containerEl)
+            .setName("Sync every")
+            .setDesc(
+                `Also synchronise every this many seconds while automatic sync is on, so changes from other devices arrive without opening a file. 0 means only on the events above. The minimum is ${MINIMUM_PERIODIC_SYNC_SECONDS} seconds.`
+            )
+            .addText((text) => {
+                text.inputEl.type = "number";
+                text.inputEl.min = "0";
+                text.inputEl.step = "10";
+                const current = () => String(Math.max(0, this.services.setting.currentSettings().periodicReplicationInterval));
+                text.setPlaceholder("0").setValue(current());
+                text.inputEl.addEventListener("change", () => {
+                    const seconds = Number(text.getValue());
+                    if (!isValidPeriodicSyncSeconds(seconds)) {
+                        text.setValue(current());
+                        return;
+                    }
+                    fireAndForget(() =>
+                        this.services.setting.applyPartial({ periodicReplicationInterval: seconds }, true)
+                    );
+                });
+            });
         new Setting(containerEl)
             .setName("Sync now")
             .setDesc("Synchronise with the bucket immediately.")

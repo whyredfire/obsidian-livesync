@@ -7,7 +7,10 @@ import {
 import { REMOTE_MINIO } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import {
     createNewVaultSettings,
+    DEFAULT_PERIODIC_SYNC_SECONDS,
     isAutomaticSyncEnabled,
+    isValidPeriodicSyncSeconds,
+    periodicSyncIntervalMs,
     RED_SYNC_ENFORCED_SETTINGS,
     RED_SYNC_SYNC_TRIGGERS_OFF,
 } from "./newVaultSettings.ts";
@@ -60,8 +63,10 @@ describe("createNewVaultSettings", () => {
             encrypt: false,
             syncInternalFiles: false,
             usePluginSync: false,
+            periodicReplicationInterval: DEFAULT_PERIODIC_SYNC_SECONDS,
         });
         expect(isAutomaticSyncEnabled(settings)).toBe(true);
+        expect(periodicSyncIntervalMs(settings)).toBe(DEFAULT_PERIODIC_SYNC_SECONDS * 1000);
     });
 
     it("does not override the automatic synchronisation triggers when enforcing settings", () => {
@@ -72,5 +77,26 @@ describe("createNewVaultSettings", () => {
             expect(RED_SYNC_ENFORCED_SETTINGS).not.toHaveProperty(key);
         }
         expect(isAutomaticSyncEnabled({ ...createNewVaultSettings(), ...RED_SYNC_SYNC_TRIGGERS_OFF })).toBe(false);
+    });
+});
+
+describe("periodic synchronisation interval", () => {
+    const on = { syncOnStart: true, syncOnFileOpen: true, syncOnSave: true };
+
+    it("is off when the interval is 0 or automatic sync is off", () => {
+        expect(periodicSyncIntervalMs({ ...on, periodicReplicationInterval: 0 })).toBeUndefined();
+        expect(
+            periodicSyncIntervalMs({ ...RED_SYNC_SYNC_TRIGGERS_OFF, periodicReplicationInterval: 60 })
+        ).toBeUndefined();
+    });
+
+    it("never polls faster than the minimum", () => {
+        expect(periodicSyncIntervalMs({ ...on, periodicReplicationInterval: 1 })).toBe(10_000);
+        expect(periodicSyncIntervalMs({ ...on, periodicReplicationInterval: 90 })).toBe(90_000);
+    });
+
+    it("accepts 0 or whole seconds from the minimum upwards", () => {
+        expect([0, 10, 60, 3600].every(isValidPeriodicSyncSeconds)).toBe(true);
+        expect([-1, 5, 9, 12.5, Number.NaN].some(isValidPeriodicSyncSeconds)).toBe(false);
     });
 });

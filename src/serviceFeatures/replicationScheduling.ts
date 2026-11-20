@@ -7,18 +7,33 @@ import {
     type ReplicationOutcome,
     type UnattendedOneShotRequest,
 } from "@vrtmrz/livesync-commonlib/replication";
+import { EVENT_SETTING_SAVED } from "@/common/events";
+import { periodicSyncIntervalMs } from "@/common/core/settings/newVaultSettings";
 
-type ReplicationSchedulingSettings = Pick<ObsidianLiveSyncSettings, "isConfigured" | "syncOnStart">;
+type ReplicationSchedulingSettings = Pick<
+    ObsidianLiveSyncSettings,
+    "isConfigured" | "syncOnStart" | "syncOnFileOpen" | "syncOnSave" | "periodicReplicationInterval"
+>;
+
+/** Timer operations required by the periodic synchronisation. */
+export interface ReplicationSchedulingTimer {
+    enable(intervalMs: number, tick: () => void): void;
+    disable(): void;
+}
 
 interface ReplicationSchedulingDependencies {
     isReady(): boolean;
     isSuspended(): boolean;
     currentSettings(): ReplicationSchedulingSettings;
     replicateUnattended(request: UnattendedOneShotRequest): Promise<ReplicationOutcome>;
+    timer: ReplicationSchedulingTimer;
     log(error: unknown): void;
 }
 
 interface ReplicationSchedulingState {
+    /** The interval the timer currently runs at, or undefined while it is stopped. */
+    periodicIntervalMs: number | undefined;
+    periodicRunning: boolean;
     lifecycleAllowsScheduling: boolean;
     lifecycleGeneration: number;
     resumeOperation: Promise<void> | undefined;
@@ -39,6 +54,8 @@ export function createReplicationSchedulingContext(
     return {
         dependencies,
         state: {
+            periodicIntervalMs: undefined,
+            periodicRunning: false,
             // AppLifecycleService does not expose physical visibility as
             // isSuspended(). Keep the observed state in this private context.
             lifecycleAllowsScheduling: false,
@@ -97,7 +114,45 @@ function scheduleAfterResume(context: ReplicationSchedulingContext): void {
         });
 }
 
-/** Run the start-up synchronisation after the application has resumed. */
+function periodicIntervalFor(context: ReplicationSchedulingContext): number | undefined {
+    const { dependencies, state } = context;
+    if (!state.lifecycleAllowsScheduling || !dependencies.isReady() || dependencies.isSuspended()) return undefined;
+    const settings = dependencies.currentSettings();
+    if (!settings.isConfigured) return undefined;
+    return periodicSyncIntervalMs(settings);
+}
+
+/** Start, restart, or stop the periodic timer so that it matches the current settings and lifecycle. */
+export function reconcilePeriodicReplication(context: ReplicationSchedulingContext): void {
+    const { dependencies, state } = context;
+    const intervalMs = periodicIntervalFor(context);
+    if (intervalMs === state.periodicIntervalMs) return;
+    state.periodicIntervalMs = intervalMs;
+    if (intervalMs === undefined) {
+        dependencies.timer.disable();
+        return;
+    }
+    dependencies.timer.enable(intervalMs, () => {
+        void runPeriodicReplication(context);
+    });
+}
+
+/** Run one periodic synchronisation, unless one is still running or it is no longer allowed. */
+export async function runPeriodicReplication(context: ReplicationSchedulingContext): Promise<void> {
+    const { dependencies, state } = context;
+    // A cleared interval does not retract a callback which is already queued.
+    if (state.periodicRunning || periodicIntervalFor(context) === undefined) return;
+    state.periodicRunning = true;
+    try {
+        await dependencies.replicateUnattended({ trigger: "periodic", interaction: NO_INTERACTION });
+    } catch (error) {
+        dependencies.log(error);
+    } finally {
+        state.periodicRunning = false;
+    }
+}
+
+/** Run the start-up synchronisation after the application has resumed, and start the periodic timer. */
 export function resumeReplicationScheduling(context: ReplicationSchedulingContext): void {
     const { state } = context;
     if (!state.lifecycleAllowsScheduling) {
@@ -105,21 +160,44 @@ export function resumeReplicationScheduling(context: ReplicationSchedulingContex
     }
     state.lifecycleAllowsScheduling = true;
     scheduleAfterResume(context);
+    reconcilePeriodicReplication(context);
 }
 
 /** Stop scheduling new work before the application suspends or unloads. */
 export function suspendReplicationScheduling(context: ReplicationSchedulingContext): void {
     context.state.lifecycleAllowsScheduling = false;
     context.state.queuedResumeGeneration = undefined;
+    reconcilePeriodicReplication(context);
 }
 
-type ReplicationSchedulingHost = NecessaryServices<"API" | "appLifecycle" | "replication" | "setting", never>;
+type ReplicationSchedulingHost = NecessaryServices<
+    "API" | "appLifecycle" | "context" | "replication" | "setting",
+    never
+>;
+
+/** A timer on the host API, which Obsidian clears when the plug-in unloads. */
+function createIntervalTimer(api: ReplicationSchedulingHost["services"]["API"]): ReplicationSchedulingTimer {
+    let timerId: number | undefined;
+    const disable = () => {
+        if (timerId === undefined) return;
+        api.clearInterval(timerId);
+        timerId = undefined;
+    };
+    return {
+        enable(intervalMs, tick) {
+            disable();
+            timerId = api.setInterval(tick, intervalMs);
+        },
+        disable,
+    };
+}
 
 /**
- * Bind start-up synchronisation to the host lifecycle.
+ * Bind scheduled synchronisation to the host lifecycle.
  *
- * Object Storage has no continuous replication, so the only scheduled work is the
- * unattended OneShot which runs on resume when 'sync on start' is enabled.
+ * Object Storage has no continuous replication. Scheduled work is the unattended
+ * OneShot on resume when 'sync on start' is enabled, and the periodic OneShot
+ * every 'Sync every' seconds while automatic sync is on.
  */
 export function useReplicationScheduling(host: ReplicationSchedulingHost): void {
     const services = host.services;
@@ -129,7 +207,11 @@ export function useReplicationScheduling(host: ReplicationSchedulingHost): void 
         isSuspended: () => services.appLifecycle.isSuspended(),
         currentSettings: () => services.setting.currentSettings(),
         replicateUnattended: (request) => services.replication.replicateUnattended(request),
+        timer: createIntervalTimer(services.API),
         log: (error) => log(error, LOG_LEVEL_VERBOSE),
+    });
+    services.context.events.onEvent(EVENT_SETTING_SAVED, () => {
+        reconcilePeriodicReplication(context);
     });
     const stop = () => {
         suspendReplicationScheduling(context);

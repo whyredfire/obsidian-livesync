@@ -11,6 +11,7 @@ Red Sync is an Obsidian plug-in which synchronises a vault through a Cloudflare 
     - `R2_FIXED_OPTIONS`: region `auto`, path-style addressing, and Obsidian's request API.
     - `RED_SYNC_ENFORCED_SETTINGS`: applied on every load by `ObsidianSettingService.adjustSettings`.
     - `RED_SYNC_SYNC_TRIGGERS`: switched by the 'Automatic sync' toggle. Fetch and Rebuild turn these off on purpose; do not enforce them on load.
+    - `periodicSyncIntervalMs`: the 'Sync every' timer in `src/serviceFeatures/replicationScheduling.ts`, driven by `periodicReplicationInterval` (0 means off) and active only while automatic sync is on. The commonlib `periodicReplication` flag stays off.
 - `src/modules/features/SettingDialogue/RedSyncSettingTab.ts` is the whole settings page. Connection and encryption changes go through `SetupManager` dialogues (`src/modules/features/SetupWizard/dialogs/`), which test the connection and decide between uploading (Rebuild) and downloading (Fetch).
 - `ObsidianVaultService.vaultName()` appends `-redsync` so the local databases never collide with Self-hosted LiveSync.
 
