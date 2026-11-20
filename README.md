@@ -40,26 +40,31 @@ Then enable 'Red Sync' in Obsidian under Settings, Community plug-ins.
 ## Setting up the first device
 
 1. Open Settings, Red Sync, and select 'Start setup'.
-2. Choose 'I am setting this up for the first time', then 'Configure a remote manually'.
-3. Choose whether to encrypt your notes. If you do, choose a passphrase and keep it safe: it is required on every device, and the data in the bucket cannot be recovered without it.
-4. Enter the endpoint, keys, and bucket name, then select 'Test Settings and Continue'.
-5. Confirm the restart. After restarting, this vault is uploaded to the bucket.
-6. When the upload has finished, open the Red Sync settings and turn on 'Automatic sync'.
+2. Choose 'Start a new sync'.
+3. Fill in the form:
+    - Cloudflare R2: the endpoint, Access Key ID, Secret Access Key, bucket, and optionally a folder inside the bucket.
+    - Encryption: turn on 'Encrypt notes' to encrypt before upload. Choose a passphrase and keep it safe: every device needs it, and the data in the bucket cannot be recovered without it. 'Hide file names' also hides the folder structure, sizes, and timestamps.
+    - Options: the bucket size warning in megabytes (0 means no warning).
+4. Select 'Upload this vault'. The connection is tested first. If the bucket already holds data, the button changes to 'Replace and upload', so overwriting it needs a second click.
+5. Obsidian restarts and uploads the vault. When it has finished, automatic sync is turned on and 'Red Sync is ready' is shown.
 
 ## Setting up further devices
 
-1. On a device which is already set up, open the Red Sync settings and select 'Copy setup URI' (or 'Show QR code'). Choose a passphrase to protect the URI.
-2. On the new device, select 'Start setup', choose 'I am adding a device to an existing synchronisation setup', and paste the Setup URI (or scan the QR code).
-3. Confirm the restart. After restarting, the vault is fetched from the bucket.
-4. Check that your files look right, then turn on 'Automatic sync' in the Red Sync settings.
+1. On a device which is already set up, open the Red Sync settings and select 'Copy setup URI'. Choose a passphrase to protect the link and whether it should expire at the end of this week, then select 'Create and copy'. Alternatively, select 'Show QR code'.
+2. On the new device, select 'Start setup', then either:
+    - 'Use a setup URI', and paste the link with its passphrase (or scan the QR code with the device's camera), or
+    - 'Join an existing sync', and enter the same details as on the first device.
+3. Obsidian restarts and downloads your notes. They are merged with anything already in the vault: the newer copy of each file wins, and files which exist only on this device are kept. Automatic sync is then turned on.
 
 ## How synchronisation works
 
-Object storage does not offer a live connection, so Red Sync synchronises on events:
+Object storage does not offer a live connection, so Red Sync synchronises:
 
 - when Obsidian starts,
-- when a file is opened, and
-- a few seconds after changes are saved. Rapid edits are grouped: a save-triggered synchronisation starts once typing has paused for 5 seconds, or after 60 seconds at most.
+- when a file is opened,
+- a few seconds after changes are saved (a save-triggered synchronisation starts once typing has paused for 5 seconds, or after 60 seconds at most),
+- every 'Sync every' seconds (60 by default), so that changes from other devices arrive without opening a file, and
+- after a conflict has been merged.
 
 You can also synchronise at any time with 'Sync now' in the settings or the ribbon icon.
 
@@ -68,12 +73,15 @@ You can also synchronise at any time with 'Sync now' in the settings or the ribb
 | Setting | Description |
 | --- | --- |
 | Bucket | The R2 bucket and endpoint in use. 'Change' re-runs the connection dialogue. |
-| End-to-end encryption | Whether notes are encrypted before upload, and whether file paths are obfuscated. Changing it requires the bucket to be rebuilt; the dialogue guides you through this. |
-| Automatic sync | Switches the event-driven synchronisation on or off. Fetching or overwriting turns it off so that you can review your files first. |
+| Bucket size warning | Warn when the data in the bucket grows beyond this many megabytes. 0 means no warning. |
+| End-to-end encryption | Whether notes are encrypted before upload, and whether file names are hidden. Changing it requires the bucket to be rebuilt; the dialogue guides you through this. |
+| Automatic sync | Switches all automatic synchronisation on or off. Fetching or overwriting turns it off so that you can review your files first. |
+| Sync every | Seconds between periodic synchronisations while automatic sync is on. 0 turns it off; the minimum is 10. |
 | Sync now | Synchronises immediately. |
 | Copy setup URI / Show QR code | Configures another device with the same bucket and encryption settings. |
 | Fetch everything from R2 | Rebuilds this device's local database from the bucket. |
 | Overwrite R2 with this device | Replaces the data in the bucket with this vault. Other devices must fetch again afterwards. |
+| Show stats for nerds | Shows synchronisation statistics in the status bar and progress notifications. When off, only urgent messages appear. |
 | Log | Shows the synchronisation log. |
 
 Fixed defaults which are not shown: region `auto`, path-style addressing, and Obsidian's request API (no CORS configuration needed).

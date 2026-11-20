@@ -128,18 +128,12 @@ export class ObsidianConfirm<T extends ObsidianServiceContext = ObsidianServiceC
         opt: { title?: string; defaultAction: T[number]; timeout?: number }
     ): Promise<T[number] | false> {
         const defaultTitle = $msg("moduleInputUIObsidian.defaultTitleSelect");
-        // Commonlib owns the transport decision, while LiveSync owns the
-        // concrete Obsidian view which lets users revise that decision.
-        const presentedMessage =
-            opt.title === "P2P Connection Request"
-                ? message.replace("Peer-to-Peer Replicator Pane", $msg("P2P Status pane"))
-                : message;
         if (!this.hasCountdown(opt.timeout)) {
             const result = await confirmAction(
                 this._app,
                 {
                     title: opt.title || defaultTitle,
-                    message: presentedMessage,
+                    message,
                     actions: buttons,
                     actionLayout: "vertical",
                     defaultAction: opt.defaultAction,
@@ -152,7 +146,7 @@ export class ObsidianConfirm<T extends ObsidianServiceContext = ObsidianServiceC
         return confirmWithMessageWithWideButton(
             this._plugin,
             opt.title || defaultTitle,
-            presentedMessage,
+            message,
             buttons,
             opt.defaultAction,
             opt.timeout

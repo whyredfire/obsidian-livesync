@@ -113,27 +113,3 @@ export const ImportAliasRules = (base) => ({
         },
     ],
 });
-/**
- * @type {import("eslint").Linter.RulesRecord}
- */
-export const CommunityReviewRecommendedRules = {
-    "no-unused-vars": "off",
-    "no-prototype-bultins": "off",
-    "no-self-compare": "warn",
-    "no-eval": "error",
-    "no-implied-eval": "error",
-    "prefer-const": "off",
-    "no-implicit-globals": "error",
-    "no-console": "off", // overridden by obsidianmd/rule-custom-message
-    "no-restricted-globals": ["error", ...restrictedGlobalsOptions],
-    "no-restricted-imports": ["error", ...restrictedImportsOptions],
-    "no-alert": "error",
-    "no-undef": "error",
-    "@typescript-eslint/ban-ts-comment": "off",
-    "@typescript-eslint/no-deprecated": "error",
-    "@typescript-eslint/no-unused-vars": ["warn", { args: "none" }],
-    "@typescript-eslint/require-await": "off",
-    "@typescript-eslint/no-explicit-any": ["error", { fixToUnknown: true }],
-    // "import/no-nodejs-modules": "off",
-    // "import/no-extraneous-dependencies": "error",
-};

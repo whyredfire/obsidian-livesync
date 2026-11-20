@@ -453,7 +453,6 @@ export const englishMessages = {
     Overwrite: "Overwrite",
     "Overwrite all with remote files": "Overwrite all with remote files",
     "Overwrite Server Data with This Device's Files": "Overwrite Server Data with This Device's Files",
-    "P2P Status pane": "P2P Status pane",
     "P2P.AskPassphraseForDecrypt":
         "The remote peer shared the configuration. Please input the passphrase to decrypt the configuration.",
     "P2P.AskPassphraseForShare":
@@ -482,8 +481,6 @@ export const englishMessages = {
     "Please select 'Cancel' explicitly to cancel this operation.":
         "Please select 'Cancel' explicitly to cancel this operation.",
     "Please select an option to proceed": "Please select an option to proceed",
-    "Please select the button below to restart and proceed to the data fetching confirmation.":
-        "Please select the button below to restart and proceed to the data fetching confirmation.",
     "Please select the button below to restart and proceed to the final confirmation.":
         "Please select the button below to restart and proceed to the final confirmation.",
     "Please select your situation.": "Please select your situation.",

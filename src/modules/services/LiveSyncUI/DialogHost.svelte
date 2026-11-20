@@ -172,13 +172,6 @@
     .dialog-host :global(textarea:invalid) {
         border-color: var(--background-modifier-error);
     }
-    .dialog-host :global(.sub-section) {
-        margin-left: 1em;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5em;
-    }
-
     .dialog-host :global(.row > input[type="text"]:disabled),
     .dialog-host :global(.row > input[type="password"]:disabled),
     .dialog-host :global(.row > textarea:disabled),

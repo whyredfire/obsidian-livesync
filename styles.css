@@ -295,17 +295,8 @@ body.is-mobile .livesync-compatibility-review-notice {
     border-radius: 2px;
 }
 
-/* An optional, workspace-only barrier during a substantial catch-up. Other Obsidian dialogues remain usable. */
-
 .livesync-stat-item {
     font-variant-numeric: tabular-nums;
-}
-
-.livesync-stat-sync-mode {
-    display: inline-block;
-    padding-inline: 0.3em;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: var(--radius-s);
 }
 
 .livesync-stat-item.livesync-stat-inactive {
@@ -316,18 +307,13 @@ body.is-mobile .livesync-compatibility-review-notice {
     white-space: pre;
 }
 
-.syncstatusbar .livesync-stat-sync-mode {
-    margin-inline-end: 0.5em;
-}
-
 .livesync-status-statusline
     > .livesync-stat-item:not(.livesync-stat-inactive)
     ~ .livesync-stat-item:not(
         .livesync-stat-push-remaining,
         .livesync-stat-pull-remaining,
         .livesync-stat-ff-push,
-        .livesync-stat-ff-pull,
-        .livesync-stat-p2p
+        .livesync-stat-ff-pull
     ) {
     margin-inline-start: 1em;
 }

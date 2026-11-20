@@ -41,7 +41,6 @@ import { BASE_IS_NEW, EVEN, TARGET_IS_NEW } from "@vrtmrz/livesync-commonlib/com
 export { BASE_IS_NEW, EVEN, TARGET_IS_NEW };
 // Why 2000? : ZIP FILE Does not have enough resolution.
 import { compareMTime } from "@vrtmrz/livesync-commonlib/compat/common/utils";
-export { compareMTime };
 function getKey(file: AnyEntry | string | UXFileInfoStub) {
     const key = typeof file == "string" ? file : stripAllPrefixes(file.path);
     return key;
