@@ -1,7 +1,7 @@
 {
     "id": "red-sync",
     "name": "Red Sync",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "minAppVersion": "1.7.2",
     "description": "Synchronise your vault through a Cloudflare R2 bucket, with optional end-to-end encryption.",
     "author": "Karan Parashar",

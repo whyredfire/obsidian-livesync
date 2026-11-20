@@ -1,6 +1,6 @@
 {
     "name": "red-sync",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Synchronise your vault through a Cloudflare R2 bucket, with optional end-to-end encryption.",
     "main": "main.js",
     "type": "module",
