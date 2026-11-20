@@ -159,6 +159,7 @@ export class ObsidianConfirm<T extends ObsidianServiceContext = ObsidianServiceC
         anchorCallback: (anchor: HTMLAnchorElement) => void,
         durationMs: number = 20000
     ) {
+        if (this._context.notificationsSilenced) return;
         const popupKey = "popup-" + key;
         this.popupKeys.add(popupKey);
         const fragment = createFragment((doc) => {

@@ -59,24 +59,30 @@ Object storage does not offer a live connection, so Red Sync synchronises:
 - when a file is opened,
 - a few seconds after changes are saved (a save-triggered synchronisation starts once typing has paused for 5 seconds, or after 60 seconds at most),
 - every 'Sync every' seconds (60 by default), so that changes from other devices arrive without opening a file, and
-- after a conflict has been merged.
+- after a conflict has been resolved.
 
 You can also synchronise at any time with 'Sync now' in the settings or the ribbon icon.
+
+After setup, Red Sync never asks questions on its own:
+
+- **A note changed on two devices.** Red Sync merges the changes itself. If the edits overlap and cannot be merged, the newer version stays in the note and the other one is saved next to it as `Note (Conflicted copy 202611211430).md`, so nothing is lost; compare the two and delete the copy when you are done. Other files, such as images, keep the newer version.
+- **Another device replaced the data in R2.** This device downloads everything again by itself, the same way as joining: the newer copy of each note wins and notes which exist only here are kept.
+- **R2 cannot be reached.** Synchronisation waits and tries again; a scheduled download or upload runs at the next start-up.
 
 ## Settings
 
 | Setting | Description |
 | --- | --- |
-| Bucket | The R2 bucket and endpoint in use. 'Change' re-runs the connection dialogue. |
-| Bucket size warning | Warn when the data in the bucket grows beyond this many megabytes. 0 means no warning. |
-| End-to-end encryption | Whether notes are encrypted before upload, and whether file names are hidden. Changing it requires the bucket to be rebuilt; the dialogue guides you through this. |
-| Automatic sync | Switches all automatic synchronisation on or off. Fetching or overwriting turns it off so that you can review your files first. |
+| Bucket / End-to-end encryption | The R2 bucket and whether notes are encrypted. 'Change' reopens setup with the current details filled in. |
+| Bucket size warning | Warn once at start-up when the data in the bucket grows beyond this many megabytes. 0 means no warning. |
+| Automatic sync | Switches all automatic synchronisation on or off. |
 | Sync every | Seconds between periodic synchronisations while automatic sync is on. 0 turns it off; the minimum is 10. |
 | Sync now | Synchronises immediately. |
+| Silence notifications | Shows no pop-up notifications on this device at all. Everything is still recorded in the log. |
 | Copy setup URI / Show QR code | Configures another device with the same bucket and encryption settings. |
-| Fetch everything from R2 | Rebuilds this device's local database from the bucket. |
-| Overwrite R2 with this device | Replaces the data in the bucket with this vault. Other devices must fetch again afterwards. |
-| Show stats for nerds | Shows synchronisation statistics in the status bar and progress notifications. When off, only urgent messages appear. |
+| Fetch everything from R2 | Downloads everything again and merges it with this vault. |
+| Overwrite R2 with this device | Replaces the data in the bucket with this vault. Other devices download it again automatically. |
+| Show stats for nerds | Shows synchronisation statistics in the status bar and progress notifications. When off, only important messages appear. |
 | Log | Shows the synchronisation log. |
 
 Fixed defaults which are not shown: region `auto`, path-style addressing, and Obsidian's request API (no CORS configuration needed).

@@ -7,9 +7,15 @@ import {
     REPLICATION_PROGRESS_PRESENTATIONS,
     USER_INITIATED_REPLICATION_AUTHORITY,
 } from "@vrtmrz/livesync-commonlib/replication";
-import { SetupManager, UserMode } from "@/modules/features/SetupManager.ts";
+import { SetupManager } from "@/modules/features/SetupManager.ts";
+import { setupFormValuesFrom } from "@/serviceFeatures/setupObsidian/setupForm.ts";
 import { closeObsidianSettings } from "@/modules/coreObsidian/UI/obsidianSettings.ts";
-import { getStatsForNerds, setStatsForNerds } from "@/modules/services/ObsidianSettingService.ts";
+import {
+    getSilenceNotifications,
+    getStatsForNerds,
+    setSilenceNotifications,
+    setStatsForNerds,
+} from "@/modules/services/ObsidianSettingService.ts";
 import { copySetupURI } from "@/serviceFeatures/setupObsidian/setupUri.ts";
 import { encodeSetupSettingsAsQR } from "@/serviceFeatures/setupObsidian/qrCode.ts";
 import { VIEW_TYPE_LOG } from "@/modules/features/Log/LogPaneView.ts";
@@ -88,6 +94,12 @@ export class RedSyncSettingTab extends PluginSettingTab {
         this.services.appLifecycle.performRestart();
     }
 
+    /** Reopen setup with the current connection filled in. */
+    private changeConnection() {
+        const values = setupFormValuesFrom(this.services.setting.currentSettings());
+        this.runFlow(() => this.setupManager.startOnBoarding(values));
+    }
+
     refresh(): void {
         if (this.containerEl.isShown()) this.display();
     }
@@ -122,15 +134,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
             .addButton((button) =>
                 button
                     .setButtonText("Change")
-                    .onClick(() =>
-                        this.runFlow(() =>
-                            this.setupManager.onBucketManualSetup(
-                                UserMode.Update,
-                                this.services.setting.currentSettings(),
-                                true
-                            )
-                        )
-                    )
+                    .onClick(() => this.changeConnection())
             );
 
         new Setting(containerEl)
@@ -170,14 +174,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
             .addButton((button) =>
                 button
                     .setButtonText("Change")
-                    .onClick(() =>
-                        this.runFlow(() =>
-                            this.setupManager.onlyE2EEConfiguration(
-                                UserMode.Update,
-                                this.services.setting.currentSettings()
-                            )
-                        )
-                    )
+                    .onClick(() => this.changeConnection())
             );
 
         // Synchronisation
@@ -185,7 +182,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Automatic sync")
             .setDesc(
-                "Synchronise at start-up, when a file is opened, a few seconds after changes are saved, and on the schedule below. Fetching or overwriting turns this off; turn it on again once your files look right."
+                "Synchronise at start-up, when a file is opened, a few seconds after changes are saved, and on the schedule below."
             )
             .addToggle((toggle) =>
                 toggle.setValue(isAutomaticSyncEnabled(settings)).onChange((enabled) =>
@@ -235,6 +232,17 @@ export class RedSyncSettingTab extends PluginSettingTab {
                 )
             );
 
+        new Setting(containerEl)
+            .setName("Silence notifications")
+            .setDesc(
+                "Show no pop-up notifications on this device, not even errors or 'Red Sync is ready'. Everything is still recorded in the log."
+            )
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(getSilenceNotifications(this.services.setting))
+                    .onChange((enabled) => fireAndForget(() => setSilenceNotifications(this.services.setting, enabled)))
+            );
+
         // Other devices
         new Setting(containerEl).setName("Set up another device").setHeading();
         new Setting(containerEl)
@@ -256,7 +264,9 @@ export class RedSyncSettingTab extends PluginSettingTab {
         new Setting(containerEl).setName("Recovery").setHeading();
         new Setting(containerEl)
             .setName("Fetch everything from R2")
-            .setDesc("Rebuild this device's local database from the bucket. Obsidian restarts to do this.")
+            .setDesc(
+                "Download everything from the bucket again and merge it with this vault: the newer copy of each note wins and notes which exist only here are kept. Obsidian restarts to do this."
+            )
             .addButton((button) =>
                 button
                     .setButtonText("Fetch")
@@ -265,7 +275,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
                             this.scheduleAndRestart(
                                 FlagFilesHumanReadable.FETCH_ALL,
                                 "Fetch everything from R2",
-                                "This device's local database will be rebuilt from the data in the bucket after a restart. Files which have not been synchronised may conflict with the fetched data.",
+                                "Obsidian will restart and download everything from the bucket again. Notes on this device are merged: the newer copy of each note wins and notes which exist only here are kept.",
                                 "Restart and fetch"
                             )
                         )
@@ -296,7 +306,7 @@ export class RedSyncSettingTab extends PluginSettingTab {
         new Setting(containerEl)
             .setName("Show stats for nerds")
             .setDesc(
-                "Show synchronisation statistics in the status bar and the editor, and show progress notifications. When off, only urgent messages and dialogues appear; everything is still recorded in the log."
+                "Show synchronisation statistics in the status bar and the editor, and show progress notifications. When off, only important messages appear; everything is still recorded in the log."
             )
             .addToggle((toggle) =>
                 toggle

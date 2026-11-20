@@ -415,44 +415,22 @@ describe("ModuleResolvingMismatchedTweaks", () => {
         );
     });
 
-    it("uses the failed attempt hint and writes only through that exact active publication", async () => {
+    it("adopts the failed attempt's remote settings without asking, then checks again", async () => {
         const { module, core } = createModule();
         const attemptPreferred = {
             ...BASE_TWEAKS,
             customChunkSize: 60,
         };
-        const replacementPreferred = {
-            ...BASE_TWEAKS,
-            customChunkSize: 99,
-        };
-        let updatePreferredRemote: ((setting: typeof core.settings) => Promise<boolean>) | undefined;
-        const askResolvingMismatched = vi.fn(
-            async (_preferred: unknown, update: (setting: typeof core.settings) => Promise<boolean>) => {
-                updatePreferredRemote = update;
-                return "IGNORE" as const;
-            }
-        );
+        const askResolvingMismatched = vi.fn();
         core._services.tweakValue = { askResolvingMismatched };
-        core.replicator = {
-            tweakSettingsMismatched: true,
-            preferredTweakValue: replacementPreferred,
-        };
-        const failedSetPreferred = vi.fn(async (_setting: typeof core.settings) => undefined);
-        const replacementSetPreferred = vi.fn(async (_setting: typeof core.settings) => undefined);
-        const failedContext = {
-            provider: {},
-            replicator: { setPreferredRemoteTweakSettings: failedSetPreferred },
-            configurationIdentity: "profile-a",
-        };
-        const replacementContext = {
-            provider: {},
-            replicator: { setPreferredRemoteTweakSettings: replacementSetPreferred },
-            configurationIdentity: "profile-b",
-        };
-        let activeContext = failedContext;
+        const applyExternalSettings = vi.fn(async (next: typeof core.settings) => {
+            core.settings = next;
+        });
+        core._services.setting.applyExternalSettings = applyExternalSettings;
+        const failedContext = { provider: {}, replicator: {}, configurationIdentity: "profile-a" };
         core._services.replicator = {
             runWithActiveReplicatorContext: vi.fn(async (task: (context: typeof failedContext) => unknown) =>
-                task(activeContext)
+                task(failedContext)
             ),
         };
         const request = {
@@ -470,24 +448,11 @@ describe("ModuleResolvingMismatchedTweaks", () => {
             interaction: USER_INITIATED_REPLICATION_AUTHORITY,
         } as unknown as ReplicationAttemptFailure;
 
-        await expect(module._anyAfterConnectCheckFailed(request)).resolves.toBe(true);
+        await expect(module._anyAfterConnectCheckFailed(request)).resolves.toBe("CHECKAGAIN");
 
-        expect(askResolvingMismatched).toHaveBeenCalledWith(
-            attemptPreferred,
-            expect.any(Function),
-            expect.objectContaining({ alignment: "mismatched" })
-        );
-        const effectiveSetting = { ...core.settings, customChunkSize: 64 };
-        await expect(updatePreferredRemote?.(effectiveSetting)).resolves.toBe(true);
-        expect(failedSetPreferred).toHaveBeenCalledWith(effectiveSetting);
-        expect(failedSetPreferred.mock.calls[0][0]).not.toBe(effectiveSetting);
-
-        activeContext = replacementContext;
-        await expect(updatePreferredRemote?.({ ...effectiveSetting, customChunkSize: 72 })).resolves.toBe(false);
-        expect(failedSetPreferred).toHaveBeenCalledOnce();
-        expect(replacementSetPreferred).not.toHaveBeenCalled();
+        expect(askResolvingMismatched).not.toHaveBeenCalled();
+        expect(applyExternalSettings).toHaveBeenCalledWith(expect.objectContaining({ customChunkSize: 60 }), true);
     });
-
     it("returns an unconfigured remote result without a separate connection preflight", async () => {
         const { module, core } = createModule();
         const read = vi.fn(async () => ({

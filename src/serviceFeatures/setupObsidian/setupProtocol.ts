@@ -4,11 +4,11 @@ import { createInstanceLogFunction } from "@vrtmrz/livesync-commonlib/compat/ser
 import type { SetupFeatureHost } from "@/serviceFeatures/setupObsidian/types";
 import { configURIBase } from "@/common/types";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
-import { type SetupManager, UserMode } from "@/modules/features/SetupManager";
+import type { SetupManager } from "@/modules/features/SetupManager";
 
 async function handleSetupProtocol(setupManager: SetupManager, conf: Record<string, string>) {
     if (conf.settings) {
-        await setupManager.onUseSetupURI(UserMode.Unknown, `${configURIBase}${encodeURIComponent(conf.settings)}`);
+        await setupManager.onUseSetupURI(`${configURIBase}${encodeURIComponent(conf.settings)}`);
     } else if (conf.settingsQR) {
         await setupManager.decodeQR(conf.settingsQR);
     }

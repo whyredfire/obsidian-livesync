@@ -30,19 +30,11 @@ export type StartupLifecycleHost = NecessaryServices<
 export interface ConfiguredStartupLifecycleOperations {
     readonly databaseReady: StartupLifecycleValue<boolean>;
     readonly reportDatabaseNotReady: () => void;
-    readonly hasCompromisedChunks: () => Promise<boolean>;
-    readonly hasIncompleteDocuments: (force?: boolean) => Promise<boolean>;
-    readonly waitForCompatibilityReview: () => Promise<void>;
-    readonly runDoctor: (skipRebuild?: boolean, activateReason?: string, forceRescan?: boolean) => Promise<boolean>;
     readonly migrateBulkSend: () => Promise<void>;
 }
 
 /** Explicit host decisions and optional operation overrides for composition. */
 export interface StartupLifecycleFeatureOptions extends Partial<ConfiguredStartupLifecycleOperations> {
-    /** Invites an unconfigured Vault to begin onboarding. */
-    readonly inviteToOnboarding: () => void;
-    /** Waits for the compatibility review before opening Config Doctor. */
-    readonly waitForCompatibilityReview: () => Promise<void>;
     /** Current configured-state query; defaults to the loaded setting. */
     readonly configured?: StartupLifecycleValue<boolean>;
     /** Logger used by the default operations. */

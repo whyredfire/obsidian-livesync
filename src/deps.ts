@@ -4,9 +4,7 @@ export {
     addIcon,
     App,
     debounce,
-    Editor,
     MarkdownRenderer,
-    MarkdownView,
     Modal,
     Notice,
     Platform,
@@ -24,7 +22,7 @@ export {
     ButtonComponent,
     Component,
 } from "obsidian";
-export type { PluginManifest, RequestUrlParam, MarkdownFileInfo, Command, ViewCreator } from "obsidian";
+export type { PluginManifest, RequestUrlParam, Command, ViewCreator } from "obsidian";
 import { normalizePath as normalizePath_ } from "obsidian";
 const normalizePath = normalizePath_ as <T extends string | FilePath>(from: T) => T;
 export { normalizePath };

@@ -29,4 +29,21 @@ describe("ObsidianNoticeGroupManager", () => {
         groups.dispose();
         expect(driver.dispose).toHaveBeenCalledOnce();
     });
+
+    it("shows nothing new while notifications are silenced", () => {
+        const driver = {
+            setItem: vi.fn(),
+            finish: vi.fn(() => true),
+            removeItem: vi.fn(() => true),
+            hide: vi.fn(() => true),
+            dispose: vi.fn(),
+        };
+        const groups = new ObsidianNoticeGroupManager(driver, () => true);
+
+        groups.setItem("integrity", "result", { message: "Complete" });
+        expect(groups.finish("integrity")).toBe(false);
+        expect(driver.setItem).not.toHaveBeenCalled();
+        expect(driver.finish).not.toHaveBeenCalled();
+        expect(groups.hide("integrity")).toBe(true);
+    });
 });

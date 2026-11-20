@@ -25,15 +25,23 @@ export interface ObsidianNoticeGroups {
     dispose(): void;
 }
 
-/** Adapts Fancy Kit grouped Notices without exposing Obsidian Notice instances to features. */
+/**
+ * Adapts Fancy Kit grouped Notices without exposing Obsidian Notice instances to features.
+ * While notifications are silenced, new rows and completions are not shown.
+ */
 export class ObsidianNoticeGroupManager implements ObsidianNoticeGroups {
-    constructor(private readonly manager: KeyedNoticeGroupDriver = new KeyedNoticeGroupManager()) {}
+    constructor(
+        private readonly manager: KeyedNoticeGroupDriver = new KeyedNoticeGroupManager(),
+        private readonly isSilenced: () => boolean = () => false
+    ) {}
 
     setItem(groupKey: string, itemKey: string, item: ObsidianNoticeGroupItem): void {
+        if (this.isSilenced()) return;
         this.manager.setItem(groupKey, itemKey, item);
     }
 
     finish(groupKey: string, options?: { durationMs?: number | false }): boolean {
+        if (this.isSilenced()) return false;
         return this.manager.finish(groupKey, options);
     }
 

@@ -1,9 +1,10 @@
-import { fireAndForget } from "octagonal-wheels/promises";
 import { VER } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import type {
     NecessaryServices,
     NecessaryServicesInterfaces,
 } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
+import { createInstanceLogFunction, type LogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
+import { LOG_LEVEL_INFO, LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import {
     COMPATIBILITY_PAUSE_SETTING_MESSAGE,
     DATABASE_COMPATIBILITY_VERSION_KEY,
@@ -12,20 +13,8 @@ import {
     type CompatibilityPause,
 } from "./compatibilityReview.evaluation.ts";
 
-export type CompatibilityReviewSummaryAction = "details" | "resume" | "keep-paused" | false;
-export type CompatibilityReviewDetailsAction = "back" | false;
-
-// Explicit flag-file recovery runs at priorities 5, 10, and 20. Present the
-// compatibility review only after those operations have completed; a recovery
-// handler which stops start-up also prevents this dialogue from competing with it.
-export const COMPATIBILITY_REVIEW_LAYOUT_PRIORITY = 30;
-
-export interface CompatibilityReviewUi {
-    showSummary(pause: CompatibilityPause): Promise<CompatibilityReviewSummaryAction>;
-    showDetails(pause: CompatibilityPause): Promise<CompatibilityReviewDetailsAction>;
-    showReminder(openReview: () => void): void;
-    clearReminder(): void;
-}
+// Scheduled Fetch and Rebuild run at priorities 10 and 20; settle any pause after them.
+const COMPATIBILITY_REVIEW_LAYOUT_PRIORITY = 30;
 
 export type CompatibilityReviewDependencies = NecessaryServicesInterfaces<
     "setting" | "config" | "vault" | "control",
@@ -37,15 +26,20 @@ export type CompatibilityReviewHost = NecessaryServices<
     never
 >;
 
+/**
+ * After an update changes the local database format or the settings schema, the
+ * engine pauses synchronisation until the change is acknowledged. Red Sync
+ * acknowledges it automatically. Only a pause which cannot be resumed (data written
+ * by a newer version) keeps synchronisation paused, with one message to update.
+ */
 export class CompatibilityReviewController {
     private pause: CompatibilityPause | undefined;
-    private activeReview: Promise<void> | undefined;
     private _initialised = false;
     private disposed = false;
 
     constructor(
         private readonly core: CompatibilityReviewDependencies,
-        private readonly ui: CompatibilityReviewUi,
+        private readonly log: LogFunction,
         private readonly currentVersion: number = VER
     ) {}
 
@@ -77,13 +71,9 @@ export class CompatibilityReviewController {
         const settings = setting.currentSettings();
         const migrationState = setting.getSettingsMigrationState();
 
-        // An existing unconfigured Vault cannot replicate, so a database
-        // compatibility pause would only compete with onboarding and persist
-        // a misleading sync warning. Its next configured start evaluates any
-        // known compatibility reasons before initialising an absent marker.
+        // An unconfigured Vault cannot synchronise, so there is nothing to pause.
         if (settings.isConfigured !== true && migrationState?.isNewVault !== true) {
             this.pause = undefined;
-            this.ui.clearReminder();
             this._initialised = true;
             return true;
         }
@@ -99,15 +89,7 @@ export class CompatibilityReviewController {
         this.pause = evaluation.pause;
         if (evaluation.initialiseAcknowledgedVersion) {
             await this.core.services.config.setValue(DATABASE_COMPATIBILITY_VERSION_KEY, `${this.currentVersion}`);
-            this._initialised = true;
-            return true;
-        }
-        if (!this.pause) {
-            this._initialised = true;
-            return true;
-        }
-
-        if (settings.versionUpFlash === "") {
+        } else if (this.pause && settings.versionUpFlash === "") {
             settings.versionUpFlash = COMPATIBILITY_PAUSE_SETTING_MESSAGE;
             await setting.saveSettingData();
         }
@@ -116,7 +98,6 @@ export class CompatibilityReviewController {
     }
 
     private async acknowledge(): Promise<void> {
-        if (!this.pause?.resumable) return;
         const setting = this.core.services.setting;
         const settings = setting.currentSettings();
         const previousMessage = settings.versionUpFlash;
@@ -132,70 +113,40 @@ export class CompatibilityReviewController {
         const legacyKey = legacyDatabaseCompatibilityVersionKey(this.core.services.vault.getVaultName());
         await setting.deviceValues.delete(legacyKey);
         this.pause = undefined;
-        this.ui.clearReminder();
         await this.core.services.control.applySettings();
     }
 
-    private async runReview(): Promise<void> {
-        while (this.pause) {
-            const action = await this.ui.showSummary(this.pause);
-            if (action === "details") {
-                const detailsAction = await this.ui.showDetails(this.pause);
-                if (detailsAction === "back") continue;
-                break;
-            }
-            if (action === "resume" && this.pause.resumable) {
-                await this.acknowledge();
-                return;
-            }
-            break;
+    /** Resume a pause automatically, or report once that this device needs an update. */
+    async settle(): Promise<void> {
+        if (this.disposed || !this.pause) return;
+        if (this.pause.resumable) {
+            await this.acknowledge();
+            this.log("Red Sync was updated; synchronisation continues as normal.", LOG_LEVEL_INFO);
+            return;
         }
-        if (this.pause && !this.disposed) {
-            this.ui.showReminder(() => {
-                fireAndForget(() => this.openReview());
-            });
-        }
-    }
-
-    openReview(): Promise<void> {
-        if (this.disposed || !this.pause) return Promise.resolve();
-        if (this.activeReview) return this.activeReview;
-        this.ui.clearReminder();
-        this.activeReview = this.runReview().finally(() => {
-            this.activeReview = undefined;
-        });
-        return this.activeReview;
+        this.log(
+            "Synchronisation is paused because this vault's data was written by a newer version of Red Sync. Update Red Sync on this device.",
+            LOG_LEVEL_URGENT
+        );
     }
 
     dispose(): void {
         this.disposed = true;
         this.pause = undefined;
-        this.ui.clearReminder();
     }
 }
 
-export function useCompatibilityReview(
-    core: CompatibilityReviewHost,
-    ui: CompatibilityReviewUi
-): CompatibilityReviewController {
-    const controller = new CompatibilityReviewController(core, ui);
+export function useCompatibilityReview(core: CompatibilityReviewHost): CompatibilityReviewController {
+    const log = createInstanceLogFunction("SF:CompatibilityReview", core.services.API);
+    const controller = new CompatibilityReviewController(core, log);
     core.services.appLifecycle.onSettingLoaded.addHandler(() => controller.initialise());
-    core.services.appLifecycle.onLayoutReady.addHandler(() => {
-        fireAndForget(() => controller.openReview());
-        return Promise.resolve(true);
+    core.services.appLifecycle.onLayoutReady.addHandler(async () => {
+        await controller.settle();
+        return true;
     }, COMPATIBILITY_REVIEW_LAYOUT_PRIORITY);
     core.services.appLifecycle.onUnload.addHandler(() => {
         controller.dispose();
         return Promise.resolve(true);
-    });
-    core.services.API.addCommand({
-        id: "livesync-review-compatibility-pause",
-        name: "Review why synchronisation is paused",
-        checkCallback: (checking) => {
-            if (!controller.pendingPause) return false;
-            if (!checking) fireAndForget(() => controller.openReview());
-            return true;
-        },
     });
     return controller;
 }

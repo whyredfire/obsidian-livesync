@@ -94,6 +94,10 @@ export const RED_SYNC_ENFORCED_SETTINGS = {
     batchSave: true,
     batchSaveMinimumDelay: 5,
     batchSaveMaximumDelay: 60,
+    // Conflicts are merged automatically where possible; otherwise the newer version is
+    // kept and the other one is saved as a conflicted copy (see conflictCopies).
+    resolveConflictsByNewerFile: false,
+    showMergeDialogOnlyOnActive: false,
     // Features which are not part of Red Sync.
     syncInternalFiles: false,
     usePluginSync: false,

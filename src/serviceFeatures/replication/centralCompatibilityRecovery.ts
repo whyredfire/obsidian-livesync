@@ -1,130 +1,64 @@
-import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { assessTweakCompatibility } from "@vrtmrz/livesync-commonlib/settings";
-import { LOG_LEVEL_INFO, LOG_LEVEL_NOTICE, Logger } from "octagonal-wheels/common/logger";
+import { LOG_LEVEL_INFO, LOG_LEVEL_URGENT, LOG_LEVEL_VERBOSE, Logger } from "octagonal-wheels/common/logger";
 import {
     CENTRAL_COMPATIBILITY_REJECTION_REASONS,
-    type ReplicatorInstance,
     type ReplicationFailureRequest,
 } from "@vrtmrz/livesync-commonlib/replication";
-import { $msg } from "@/common/translation";
 import type { LiveSyncBaseCore } from "@/LiveSyncBaseCore";
 
-type CentralCompatibilityRecoveryServices = Pick<
-    LiveSyncBaseCore["services"],
-    "appLifecycle" | "replicator" | "setting" | "tweakValue"
->;
+type CentralCompatibilityRecoveryServices = Pick<LiveSyncBaseCore["services"], "appLifecycle" | "setting">;
 
-/** Collaborators for applying a compatibility decision to its failed publication. */
+/** Collaborators for recovering from a remote which no longer accepts this device. */
 interface CentralCompatibilityRecoveryContext {
-    readonly confirm: LiveSyncBaseCore["confirm"];
-    readonly rebuilder: LiveSyncBaseCore["rebuilder"];
+    readonly rebuilder: Pick<LiveSyncBaseCore["rebuilder"], "scheduleFetch">;
     readonly services: CentralCompatibilityRecoveryServices;
+    readonly now?: () => number;
 }
 
-interface PreferredRemoteTweakWriter extends ReplicatorInstance {
-    setPreferredRemoteTweakSettings(setting: ObsidianLiveSyncSettings): Promise<void>;
-}
+/** Download again at most this often, so that a failing download cannot restart Obsidian in a loop. */
+export const AUTOMATIC_FETCH_INTERVAL_MS = 30 * 60 * 1000;
+const LAST_AUTOMATIC_FETCH_KEY = "redSyncLastAutomaticFetch";
 
-interface ResolvedRemoteWriter extends ReplicatorInstance {
-    markRemoteResolved(setting: ObsidianLiveSyncSettings): Promise<void>;
-}
-
-function canSetPreferredRemoteTweakSettings(replicator: ReplicatorInstance): replicator is PreferredRemoteTweakWriter {
-    return (
-        "setPreferredRemoteTweakSettings" in replicator &&
-        typeof replicator.setPreferredRemoteTweakSettings === "function"
-    );
-}
-
-function canMarkRemoteResolved(replicator: ReplicatorInstance): replicator is ResolvedRemoteWriter {
-    return "markRemoteResolved" in replicator && typeof replicator.markRemoteResolved === "function";
-}
+/** Reasons which mean that the data in R2 was replaced, or no longer matches this device. */
+const REDOWNLOAD_REASONS: ReadonlySet<string> = new Set([
+    CENTRAL_COMPATIBILITY_REJECTION_REASONS.NODE_LOCKED,
+    CENTRAL_COMPATIBILITY_REJECTION_REASONS.NODE_CLEANED,
+    CENTRAL_COMPATIBILITY_REJECTION_REASONS.TWEAK_MISMATCH,
+]);
 
 /**
- * Compose central compatibility recovery around the exact failed publication.
- * Remote mutations re-admit that publication and become no-ops after a
- * replacement; the failure result is never re-read from the current instance.
+ * When another device replaced the data in R2 (or changed the shared synchronisation
+ * settings), this device can no longer synchronise with it. Instead of asking, Red Sync
+ * downloads everything again and merges it with this Vault, the same way as joining:
+ * the newer copy of each file wins and files which exist only here are kept.
  */
 export function createCentralCompatibilityRecovery(context: CentralCompatibilityRecoveryContext) {
+    const now = context.now ?? (() => Date.now());
+
     async function handleReplicationFailure(request: ReplicationFailureRequest): Promise<boolean> {
-        const { context: failedContext, interaction, outcome, setting } = request;
-        if (interaction.kind === "forbidden") {
-            // Automatic requests may report the failure, but must not enter
-            // tweak, lock, fetch, or unlock dialogues.
-            Logger("Replication failed on an unattended path.", LOG_LEVEL_INFO);
+        const reason = request.outcome.recoveryHint?.reason;
+        if (!reason || !REDOWNLOAD_REASONS.has(reason)) {
+            if (request.interaction.kind === "forbidden") {
+                Logger("Replication failed on an unattended path.", LOG_LEVEL_INFO);
+            }
             return false;
         }
-        if (!interaction.permissions.failureRecovery) return false;
-        const recovery = outcome.recoveryHint;
-        if (!recovery) return false;
-
-        if (
-            recovery.reason === CENTRAL_COMPATIBILITY_REJECTION_REASONS.TWEAK_MISMATCH &&
-            recovery.preferredTweakValue
-        ) {
-            const isCurrent = await context.services.replicator.runWithActiveReplicatorContext(
-                (activeContext) => activeContext === failedContext
-            );
-            // Compare in memory only: these snapshots can contain connection credentials.
-            if (!isCurrent || JSON.stringify(setting) !== JSON.stringify(context.services.setting.currentSettings())) {
-                return false;
-            }
-            const assessment =
-                recovery.tweakAssessment ?? assessTweakCompatibility(setting, recovery.preferredTweakValue);
-            await context.services.tweakValue.askResolvingMismatched(
-                recovery.preferredTweakValue,
-                async (effectiveSetting) => {
-                    let updated = false;
-                    await context.services.replicator.runWithActiveReplicatorContext(async (activeContext) => {
-                        if (activeContext !== failedContext) return;
-                        if (!canSetPreferredRemoteTweakSettings(activeContext.replicator)) return;
-                        await activeContext.replicator.setPreferredRemoteTweakSettings({ ...effectiveSetting });
-                        updated = true;
-                    });
-                    return updated;
-                },
-                assessment
+        const config = context.services.setting.config;
+        const last = Number(await config.getValue(LAST_AUTOMATIC_FETCH_KEY, "0")) || 0;
+        if (now() - last < AUTOMATIC_FETCH_INTERVAL_MS) {
+            Logger(
+                "This device still cannot synchronise with R2. Use 'Fetch everything from R2' in the Red Sync settings.",
+                LOG_LEVEL_URGENT
             );
             return false;
         }
-
-        if (
-            recovery.reason !== CENTRAL_COMPATIBILITY_REJECTION_REASONS.NODE_LOCKED &&
-            recovery.reason !== CENTRAL_COMPATIBILITY_REJECTION_REASONS.NODE_CLEANED
-        ) {
-            return false;
-        }
-        const message = $msg("Replicator.Dialogue.Locked.Message");
-        const CHOICE_FETCH = $msg("Replicator.Dialogue.Locked.Action.Fetch");
-        const CHOICE_DISMISS = $msg("Replicator.Dialogue.Locked.Action.Dismiss");
-        const CHOICE_UNLOCK = $msg("Replicator.Dialogue.Locked.Action.Unlock");
-        const selected = await context.confirm.askSelectStringDialogue(
-            message,
-            [CHOICE_FETCH, CHOICE_UNLOCK, CHOICE_DISMISS],
-            {
-                title: $msg("Replicator.Dialogue.Locked.Title"),
-                defaultAction: CHOICE_DISMISS,
-                timeout: 60,
-            }
+        await config.setValue(LAST_AUTOMATIC_FETCH_KEY, String(now()));
+        Logger(`Remote rejected this device: ${reason}`, LOG_LEVEL_VERBOSE);
+        Logger(
+            "Another device replaced the data in R2. Red Sync will download it again and restart Obsidian shortly.",
+            LOG_LEVEL_URGENT
         );
-        if (selected == CHOICE_FETCH) {
-            Logger($msg("Replicator.Dialogue.Locked.Message.Fetch"), LOG_LEVEL_NOTICE);
-            await context.rebuilder.scheduleFetch();
-            context.services.appLifecycle.scheduleRestart();
-            return false;
-        }
-        if (selected != CHOICE_UNLOCK) return false;
-
-        let unlocked = false;
-        await context.services.replicator.runWithActiveReplicatorContext(async (activeContext) => {
-            if (activeContext !== failedContext) return;
-            if (!canMarkRemoteResolved(activeContext.replicator)) return;
-            await activeContext.replicator.markRemoteResolved(setting);
-            unlocked = true;
-        });
-        if (unlocked) {
-            Logger($msg("Replicator.Dialogue.Locked.Message.Unlocked"), LOG_LEVEL_NOTICE);
-        }
+        await context.rebuilder.scheduleFetch();
+        context.services.appLifecycle.scheduleRestart();
         return false;
     }
 

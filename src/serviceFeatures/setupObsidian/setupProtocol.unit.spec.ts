@@ -47,10 +47,7 @@ describe("setupObsidian/setupProtocol", () => {
         expect(host.services.API.registerProtocolHandler).toHaveBeenCalledWith("setuplivesync", expect.any(Function));
 
         await protocolHandler!({ settings: "a b" });
-        expect(setupManager.onUseSetupURI).toHaveBeenCalledWith(
-            "unknown",
-            `mock-config://${encodeURIComponent("a b")}`
-        );
+        expect(setupManager.onUseSetupURI).toHaveBeenCalledWith(`mock-config://${encodeURIComponent("a b")}`);
         expect(setupManager.decodeQR).not.toHaveBeenCalled();
     });
 
@@ -76,7 +73,7 @@ describe("setupObsidian/setupProtocol", () => {
             const decodedQuery = new URL(generated.uri.trim()).searchParams.get("settings");
             expect(decodedQuery?.startsWith("%$")).toBe(true);
             await protocolHandler!({ settings: decodedQuery! });
-            const reconstructed = setupManager.onUseSetupURI.mock.calls[0][1] as string;
+            const reconstructed = setupManager.onUseSetupURI.mock.calls[0][0] as string;
             expect(reconstructed.replace("mock-config://", "obsidian://setuplivesync?settings=")).toBe(
                 generated.uri.trim()
             );

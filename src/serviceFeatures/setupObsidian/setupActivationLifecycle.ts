@@ -16,20 +16,3 @@ export function applySettingsWithScheduledInitialisation(
 ): Promise<boolean> {
     return mode === "fetch" ? scheduler.scheduleFetch(applySettings) : scheduler.scheduleRebuild(applySettings);
 }
-
-/**
- * Uses Fetch only for the transition from an unconfigured device to an
- * explicitly configured existing device. Ordinary edits apply immediately.
- */
-export async function applySettingsAndFetchOnActivation(
-    scheduler: SetupInitialisationScheduler,
-    wasConfigured: boolean | undefined,
-    willBeConfigured: boolean | undefined,
-    applySettings: () => Promise<void>
-): Promise<boolean> {
-    if (!wasConfigured && willBeConfigured) {
-        return await applySettingsWithScheduledInitialisation(scheduler, "fetch", applySettings);
-    }
-    await applySettings();
-    return true;
-}

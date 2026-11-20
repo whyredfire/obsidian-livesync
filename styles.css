@@ -1,43 +1,4 @@
-.ls-dialog .added {
-    color: var(--text-on-accent);
-    background-color: var(--text-accent);
-}
-
-.ls-dialog .normal {
-    color: var(--text-normal);
-}
-
-.ls-dialog .deleted {
-    color: var(--text-on-accent);
-    background-color: var(--text-muted);
-}
-
 .vpk-action-dialog__message {
-    user-select: text;
-    -webkit-user-select: text;
-}
-
-.conflict-dev-name {
-    display: inline-block;
-    min-width: 5em;
-}
-
-.conflict-action-container {
-    display: flex;
-    flex-direction: column;
-    gap: var(--size-4-2);
-    margin-top: var(--size-4-2);
-}
-
-.conflict-action-button {
-    width: 100%;
-    margin: 0;
-}
-
-.op-scrollable {
-    overflow-y: scroll;
-    /* min-height: 280px; */
-    max-height: 280px;
     user-select: text;
     -webkit-user-select: text;
 }
@@ -51,68 +12,8 @@
     display: none;
 }
 
-:root {
-    --sls-log-text: "";
-}
-
-body {
-    --sls-col-transparent: transparent;
-    --sls-col-warn: rgba(var(--background-modifier-error-rgb), 0.1);
-    --sls-col-warn-stripe1: var(--sls-col-transparent);
-    --sls-col-warn-stripe2: var(--sls-col-warn);
-}
-
-@keyframes sls-scroll-warn {
-    0% {
-        background-position: 0 0;
-    }
-
-    100% {
-        background-position: 30px 0;
-    }
-}
-
 .password-input > .setting-item-control > input {
     -webkit-text-security: disc;
-}
-
-.sls-onboarding-invitation-action {
-    display: inline;
-}
-
-/* Touch devices need a larger tap target; on desktop this would just pad the
-   link with blank space and make it look like a misplaced button. */
-body.is-mobile .sls-onboarding-invitation-action {
-    display: inline-flex;
-    min-width: 44px;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-}
-
-span.ls-mark-cr::after {
-    user-select: none;
-    content: "↲";
-    color: var(--text-muted);
-    font-size: 0.8em;
-}
-
-.deleted span.ls-mark-cr::after {
-    color: var(--text-on-accent);
-}
-
-@keyframes ls-blink-diff {
-    0% {
-        opacity: 0;
-    }
-
-    50% {
-        opacity: 0;
-    }
-
-    100% {
-        opacity: 1;
-    }
 }
 
 .livesync-status {
@@ -252,47 +153,6 @@ body.is-mobile .livesync-compatibility-review-notice {
         100vw - 88px - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) -
             var(--safe-area-inset-right, env(safe-area-inset-right, 0px))
     );
-}
-
-/* Diff navigation */
-.diff-options-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.diff-nav {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-}
-
-.diff-nav-btn {
-    padding: 2px 8px;
-    font-size: 0.85em;
-    cursor: pointer;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    background-color: var(--background-secondary);
-    color: var(--text-normal);
-}
-
-.diff-nav-btn:hover {
-    background-color: var(--background-modifier-hover);
-}
-
-.diff-nav-indicator {
-    font-size: 0.85em;
-    color: var(--text-muted);
-    min-width: 3em;
-    text-align: center;
-}
-
-.diff-focused {
-    outline: 2px solid var(--interactive-accent);
-    outline-offset: 1px;
-    border-radius: 2px;
 }
 
 .livesync-stat-item {

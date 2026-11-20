@@ -52,25 +52,14 @@ export class ModuleLiveSyncMain extends AbstractModule {
     async _onLiveSyncReady() {
         if (!(await this.core.services.appLifecycle.onLayoutReady())) return false;
         eventHub.emitEvent(EVENT_LAYOUT_READY);
+        // A scheduled Fetch or Rebuild suspends processing while it runs and stops start-up
+        // above if it fails. Reaching this point means none is pending, so anything still
+        // suspended was left behind by an interrupted run; resume it without asking.
         if (this.settings.suspendFileWatching || this.settings.suspendParseReplicationResult) {
-            const ANSWER_KEEP = $msg("moduleLiveSyncMain.optionKeepLiveSyncDisabled");
-            const ANSWER_RESUME = $msg("moduleLiveSyncMain.optionResumeAndRestart");
-            const message = $msg("moduleLiveSyncMain.msgScramEnabled", {
-                fileWatchingStatus: this.settings.suspendFileWatching ? "suspended" : "active",
-                parseReplicationStatus: this.settings.suspendParseReplicationResult ? "suspended" : "active",
-            });
-            if (
-                (await this.core.confirm.askSelectStringDialogue(message, [ANSWER_KEEP, ANSWER_RESUME], {
-                    defaultAction: ANSWER_KEEP,
-                    title: $msg("moduleLiveSyncMain.titleScramEnabled"),
-                })) == ANSWER_RESUME
-            ) {
-                this.settings.suspendFileWatching = false;
-                this.settings.suspendParseReplicationResult = false;
-                await this.saveSettings();
-                this.services.appLifecycle.scheduleRestart();
-                return false;
-            }
+            this._log("Resuming file and database processing left paused by an interrupted operation.", LOG_LEVEL_NOTICE);
+            this.settings.suspendFileWatching = false;
+            this.settings.suspendParseReplicationResult = false;
+            await this.saveSettings();
         }
         // Ordinary start-up may continue when individual files could not be
         // processed. Explicit Fetch and Rebuild flows remain strict.

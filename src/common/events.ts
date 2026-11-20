@@ -19,8 +19,6 @@ export const EVENT_STATS_FOR_NERDS_CHANGED = "stats-for-nerds-changed";
 
 const EVENT_REQUEST_OPEN_PLUGIN_SYNC_DIALOG = "request-open-plugin-sync-dialog";
 
-export const EVENT_REQUEST_RUN_DOCTOR = "request-run-doctor";
-export const EVENT_REQUEST_RUN_FIX_INCOMPLETE = "request-run-fix-incomplete";
 
 export const EVENT_ANALYSE_DB_USAGE = "analyse-db-usage";
 export const EVENT_INSPECT_DB_INTEGRITY = "inspect-db-integrity";
@@ -41,8 +39,6 @@ declare global {
         [EVENT_REQUEST_OPEN_SETUP_URI]: undefined;
         [EVENT_REQUEST_COPY_SETUP_URI]: undefined;
         [EVENT_REQUEST_SHOW_SETUP_QR]: undefined;
-        [EVENT_REQUEST_RUN_DOCTOR]: string;
-        [EVENT_REQUEST_RUN_FIX_INCOMPLETE]: undefined;
         [EVENT_ANALYSE_DB_USAGE]: undefined;
         [EVENT_INSPECT_DB_INTEGRITY]: undefined;
         [EVENT_REQUEST_PERFORM_GC_V3]: undefined;

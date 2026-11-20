@@ -6,32 +6,22 @@ function readValue<T>(value: StartupLifecycleValue<T>): T {
 
 /**
  * Keeps an unconfigured Vault outside database initialisation and all
- * configured-only start-up work while offering an explicit setup action.
+ * configured-only start-up work. It stays quiet: setup starts from the settings page.
  */
 export interface StartupEntryLifecycleRuntime {
     readonly configured: StartupLifecycleValue<boolean>;
-    readonly inviteToOnboarding: () => void;
 }
 
 export function runStartupEntryLifecycle(runtime: StartupEntryLifecycleRuntime): boolean {
-    if (readValue(runtime.configured)) return true;
-    runtime.inviteToOnboarding();
-    return false;
+    return readValue(runtime.configured);
 }
 
-/**
- * Separates the inert, unconfigured start-up path from checks which must run
- * before an already configured device is allowed to synchronise.
- */
+/** Start-up work for a configured device. It never asks anything. */
 export async function runConfiguredStartupLifecycle(runtime: ConfiguredStartupLifecycleOperations): Promise<boolean> {
     if (!readValue(runtime.databaseReady)) {
         runtime.reportDatabaseNotReady();
         return false;
     }
-    if (!(await runtime.hasCompromisedChunks())) return false;
-    if (!(await runtime.hasIncompleteDocuments())) return false;
-    await runtime.waitForCompatibilityReview();
-    if (!(await runtime.runDoctor())) return false;
     await runtime.migrateBulkSend();
     return true;
 }
