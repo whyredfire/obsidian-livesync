@@ -85,6 +85,8 @@ export function createNewVaultSettings(): ObsidianLiveSyncSettings {
         ...RED_SYNC_SYNC_TRIGGERS,
         encrypt: false,
         usePathObfuscation: false,
+        // No bucket size warning (unlimited) unless configured.
+        notifyThresholdOfRemoteStorageSize: 0,
         pathNormalizationVersion: 1,
     };
 }

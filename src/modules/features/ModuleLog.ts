@@ -17,13 +17,11 @@ import { createOwnedResource, type OwnedResource } from "octagonal-wheels/resour
 import { fireAndForget, isDirty, throttle } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import {
     chunkFetchCounts,
-    pluginScanningCount,
-    hiddenFilesEventCount,
-    hiddenFilesProcessingCount,
     type LogEntry,
     logMessages,
 } from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/stores";
 import {
+    EVENT_STATS_FOR_NERDS_CHANGED,
     EVENT_FILE_RENAMED,
     EVENT_LAYOUT_READY,
     EVENT_LEAF_ACTIVE_CHANGED,
@@ -32,11 +30,10 @@ import {
 } from "@/common/events.ts";
 import { AbstractObsidianModule } from "@/modules/AbstractObsidianModule.ts";
 import { addIcon, debounce, normalizePath, Notice, stringifyYaml, type WorkspaceLeaf } from "@/deps.ts";
-import { LOG_LEVEL_NOTICE, setGlobalLogFunction } from "octagonal-wheels/common/logger";
+import { LOG_LEVEL_NOTICE, LOG_LEVEL_URGENT, setGlobalLogFunction } from "octagonal-wheels/common/logger";
 import { LogPaneView, VIEW_TYPE_LOG } from "./Log/LogPaneView.ts";
 import { withLock } from "octagonal-wheels/concurrency/lock";
 import { $msg } from "@/common/translation";
-import { EVENT_SETTING_SAVED } from "@vrtmrz/livesync-commonlib/compat/events/coreEvents";
 import { REMOTE_REQUEST_ACTIVITY_MINIMUM_VISIBLE_MS, getTrackedRequestCount } from "./RemoteActivityStatus.ts";
 import {
     createChunkFetchCounterLabel,
@@ -45,7 +42,7 @@ import {
 } from "./StatusBarDisplay.ts";
 import { createFastForwardCheckedChangesDisplay, projectReplicationStatusLabel } from "./ReplicationStatusLabel.ts";
 import { createStatusBarRenderer, type StatusBarPart, type StatusBarRenderer } from "./StatusBarRenderer.ts";
-import { projectSyncModeLabel } from "./syncModeLabel.ts";
+import { getStatsForNerds } from "@/modules/services/ObsidianSettingService.ts";
 import type { LiveSyncCore } from "@/main.ts";
 import { LiveSyncError } from "@vrtmrz/livesync-commonlib/compat/common/LSError";
 import { isValidPath } from "@/common/utils.ts";
@@ -158,6 +155,15 @@ export class ModuleLog extends AbstractObsidianModule {
         statusBarParts: readonly StatusBarPart[];
     }>;
     statusLog = reactiveSource("");
+
+    /** Whether detailed notifications and statistics are enabled on this device. */
+    private get statsForNerds(): boolean {
+        return getStatsForNerds(this.services.setting);
+    }
+
+    private get showStatusOnEditor(): boolean {
+        return !!this.settings?.showStatusOnEditor && this.statsForNerds;
+    }
     activeFileStatus = reactiveSource("");
     notifies: { [key: string]: { count: number } } = {};
 
@@ -167,23 +173,20 @@ export class ModuleLog extends AbstractObsidianModule {
             return display;
         };
         const labelReplication = registerDisplay(
-            createPaddedCounterLabel(this.services.replication.replicationResultCount, `📥`)
+            createPaddedCounterLabel(this.services.replication.replicationResultCount, `received `)
         );
         const labelDBCount = registerDisplay(
-            createPaddedCounterLabel(this.services.replication.databaseQueueCount, `📄`)
+            createPaddedCounterLabel(this.services.replication.databaseQueueCount, `database `)
         );
         const labelStorageCount = registerDisplay(
-            createPaddedCounterLabel(this.services.replication.storageApplyingCount, `💾`)
+            createPaddedCounterLabel(this.services.replication.storageApplyingCount, `storage `)
         );
         const labelChunkCount = registerDisplay(createChunkFetchCounterLabel(chunkFetchCounts));
-        const labelPluginScanCount = registerDisplay(createPaddedCounterLabel(pluginScanningCount, `🔌`));
         const labelConflictProcessCount = registerDisplay(
-            createPaddedCounterLabel(this.services.conflict.conflictProcessQueueCount, `🔩`)
+            createPaddedCounterLabel(this.services.conflict.conflictProcessQueueCount, `conflicts `)
         );
-        const hiddenFilesCount = reactive(() => hiddenFilesEventCount.value - hiddenFilesProcessingCount.value);
-        const labelHiddenFilesCount = registerDisplay(createPaddedCounterLabel(hiddenFilesCount, `⚙️`));
         const queueCountLabelX = reactive(() => {
-            return `${labelReplication.value}${labelDBCount.value}${labelStorageCount.value}${labelChunkCount.value}${labelPluginScanCount.value}${labelHiddenFilesCount.value}${labelConflictProcessCount.value}`;
+            return `${labelReplication.value}${labelDBCount.value}${labelStorageCount.value}${labelChunkCount.value}${labelConflictProcessCount.value}`;
         });
         const queueCountLabel = () => queueCountLabelX.value;
 
@@ -204,10 +207,10 @@ export class ModuleLog extends AbstractObsidianModule {
         const fastForwardCount = registerDisplay(
             createFastForwardCheckedChangesDisplay(this.services.replicator.replicationStatics)
         );
-        const syncModeLabel = reactiveSource(projectSyncModeLabel(this.settings));
         this.services.API.registerCleanup(
-            this.services.context.events.onEvent(EVENT_SETTING_SAVED, (settings) => {
-                syncModeLabel.value = projectSyncModeLabel(settings);
+            this.services.context.events.onEvent(EVENT_STATS_FOR_NERDS_CHANGED, () => {
+                this.applyStatusBarText();
+                void this.updateMessageArea();
             })
         );
         const replicationStatLabel = computed(() =>
@@ -217,9 +220,15 @@ export class ModuleLog extends AbstractObsidianModule {
                 fastForwardCount.value
             )
         );
-        const labelProc = registerDisplay(createPaddedCounterLabel(this.services.fileProcessing.processing, `⏳`));
-        const labelPend = registerDisplay(createPaddedCounterLabel(this.services.fileProcessing.totalQueued, `🛫`));
-        const labelInBatchDelay = registerDisplay(createPaddedCounterLabel(this.services.fileProcessing.batched, `📬`));
+        const labelProc = registerDisplay(
+            createPaddedCounterLabel(this.services.fileProcessing.processing, `processing `)
+        );
+        const labelPend = registerDisplay(
+            createPaddedCounterLabel(this.services.fileProcessing.totalQueued, `pending `)
+        );
+        const labelInBatchDelay = registerDisplay(
+            createPaddedCounterLabel(this.services.fileProcessing.batched, `batched `)
+        );
         const waitingLabel = computed(() => {
             return `${labelProc.value}${labelPend.value}${labelInBatchDelay.value}`;
         });
@@ -229,24 +238,20 @@ export class ModuleLog extends AbstractObsidianModule {
             const replication = replicationStatLabel();
             const queued = queueCountLabel();
             const waiting = waitingLabel();
-            const syncMode = syncModeLabel.value;
             const firstLineParts = [
-                ...(syncMode ? [syncMode] : []),
                 ...replication.parts,
-                ...counterPart("file-processing", "⏳", labelProc.count.value),
-                ...counterPart("file-pending", "🛫", labelPend.count.value),
-                ...counterPart("file-batched", "📬", labelInBatchDelay.count.value),
-                ...counterPart("queue-replication", "📥", labelReplication.count.value),
-                ...counterPart("queue-database", "📄", labelDBCount.count.value),
-                ...counterPart("queue-storage", "💾", labelStorageCount.count.value),
-                ...counterPart("queue-chunk-initial", "🛄", labelChunkCount.initialCount.value),
-                ...counterPart("queue-chunk-retrying", "🔁", labelChunkCount.retryingCount.value),
-                ...counterPart("queue-plugin-scan", "🔌", labelPluginScanCount.count.value),
-                ...counterPart("queue-hidden-files", "⚙️", labelHiddenFilesCount.count.value),
-                ...counterPart("queue-conflicts", "🔩", labelConflictProcessCount.count.value),
+                ...counterPart("file-processing", "processing ", labelProc.count.value),
+                ...counterPart("file-pending", "pending ", labelPend.count.value),
+                ...counterPart("file-batched", "batched ", labelInBatchDelay.count.value),
+                ...counterPart("queue-replication", "received ", labelReplication.count.value),
+                ...counterPart("queue-database", "database ", labelDBCount.count.value),
+                ...counterPart("queue-storage", "storage ", labelStorageCount.count.value),
+                ...counterPart("queue-chunk-initial", "chunks ", labelChunkCount.initialCount.value),
+                ...counterPart("queue-chunk-retrying", "retrying ", labelChunkCount.retryingCount.value),
+                ...counterPart("queue-conflicts", "conflicts ", labelConflictProcessCount.count.value),
             ];
             return {
-                message: (syncMode ? syncMode.text + " " : "") + replication.message + waiting + queued,
+                message: replication.message + waiting + queued,
                 parts: firstLineParts,
                 statusBarParts: firstLineParts,
             };
@@ -259,7 +264,7 @@ export class ModuleLog extends AbstractObsidianModule {
             const { message, parts, statusBarParts } = statusLineLabel();
             const fileStatus = this.activeFileStatus.value;
             const status = scheduleMessage + this.statusLog.value;
-            const fileStatusIcon = `${fileStatus && this.settings.hideFileWarningNotice ? " ⛔ SKIP" : ""}`;
+            const fileStatusIcon = `${fileStatus && this.settings.hideFileWarningNotice ? " (skipped)" : ""}`;
             const skipPart = fileStatusIcon === "" ? [] : [{ key: "file-skip", text: fileStatusIcon }];
             return {
                 message: `${message}${fileStatusIcon}`,
@@ -309,11 +314,11 @@ export class ModuleLog extends AbstractObsidianModule {
             const validOnDarwin = isValidFilenameInDarwin(thisFile.name);
             const validOnAndroid = isValidFilenameInAndroid(thisFile.name);
             const labels = [];
-            if (!validOnWindows) labels.push("🪟");
-            if (!validOnDarwin) labels.push("🍎");
-            if (!validOnAndroid) labels.push("🤖");
+            if (!validOnWindows) labels.push("Windows");
+            if (!validOnDarwin) labels.push("macOS");
+            if (!validOnAndroid) labels.push("Android");
             if (labels.length > 0) {
-                reasonWarn.push("Some platforms may be unable to process this file correctly: " + labels.join(" "));
+                reasonWarn.push("Some platforms may be unable to process this file correctly: " + labels.join(", "));
             }
         }
         const oversizedPathComponents = findPathComponentsExceedingUtf8Limit(thisFile.path);
@@ -351,7 +356,7 @@ export class ModuleLog extends AbstractObsidianModule {
     async updateMessageArea() {
         if (!this.messageArea) return;
 
-        const showStatusOnEditor = this.settings?.showStatusOnEditor ?? false;
+        const showStatusOnEditor = this.showStatusOnEditor;
         if (this.statusDiv) {
             this.statusDiv.setCssStyles({ display: showStatusOnEditor ? "" : "none" });
         }
@@ -376,9 +381,9 @@ export class ModuleLog extends AbstractObsidianModule {
         ) {
             messageLines.push(...networkMessages);
         } else if (this.settings.networkWarningStyle === NetworkWarningStyles.ICON) {
-            if (networkMessages.length > 0) messageLines.push("🔗❌");
+            if (networkMessages.length > 0) messageLines.push("Network error");
         }
-        this.messageArea.innerText = messageLines.map((e) => `⚠️ ${e}`).join("\n");
+        this.messageArea.innerText = messageLines.join("\n");
     }
 
     onActiveLeafChange() {
@@ -407,11 +412,12 @@ export class ModuleLog extends AbstractObsidianModule {
             }
 
             const { parts, statusBarParts } = this.statusBarLabels.value;
-            this.statusBarRenderer?.render(statusBarParts);
+            this.statusBar?.setCssStyles({ display: this.statsForNerds ? "" : "none" });
+            if (this.statsForNerds) this.statusBarRenderer?.render(statusBarParts);
             if (this.statusDiv) {
-                this.statusDiv.setCssStyles({ display: this.settings?.showStatusOnEditor ? "" : "none" });
+                this.statusDiv.setCssStyles({ display: this.showStatusOnEditor ? "" : "none" });
             }
-            if (this.settings?.showStatusOnEditor && this.statusDiv) {
+            if (this.showStatusOnEditor && this.statusDiv) {
                 if (this.settings.showLongerLogInsideEditor) {
                     const now = new Date().getTime();
                     this.logLines = this.logLines.filter((e) => e.ttl > now);
@@ -509,7 +515,7 @@ ${stringifyYaml(info)}
             this.messageArea = this.statusDiv.createDiv({ cls: "livesync-status-messagearea" });
             this.logMessage = this.statusDiv.createDiv({ cls: "livesync-status-logmessage" });
             this.logHistory = this.statusDiv.createDiv({ cls: "livesync-status-loghistory" });
-            this.statusDiv.setCssStyles({ display: this.settings?.showStatusOnEditor ? "" : "none" });
+            this.statusDiv.setCssStyles({ display: this.showStatusOnEditor ? "" : "none" });
         }
         eventHub.onEvent(EVENT_LAYOUT_READY, () => this.adjustStatusDivPosition());
         if (this.settings?.showStatusOnStatusbar) {
@@ -597,7 +603,8 @@ ${stringifyYaml(info)}
         }
         this.logLines.push({ ttl: now.getTime() + 3000, message: newMessage });
 
-        if (level >= LOG_LEVEL_NOTICE) {
+        // Notifications are opt-in ('Show stats for nerds'); urgent messages always appear.
+        if (level >= LOG_LEVEL_URGENT || (level >= LOG_LEVEL_NOTICE && this.statsForNerds)) {
             if (!key) key = messageContent;
             if (key in this.notifies) {
                 if (key == messageContent) {

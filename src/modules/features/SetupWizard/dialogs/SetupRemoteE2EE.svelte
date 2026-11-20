@@ -5,6 +5,7 @@
     import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
     import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
     import InputRow from "@/modules/services/LiveSyncUI/components/InputRow.svelte";
+    import Check from "@/modules/services/LiveSyncUI/components/Check.svelte";
     import Password from "@/modules/services/LiveSyncUI/components/Password.svelte";
     import { DEFAULT_SETTINGS, type EncryptionSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
     import { deriveIdKey, ID_DERIVATION_VERSION } from "@vrtmrz/livesync-commonlib/settings";
@@ -75,9 +76,7 @@
         "When enabled, notes are encrypted on this device before they are uploaded, so the bucket only stores data that cannot be read without your passphrase."
     )}
 </Guidance>
-<InputRow label={translateMessage("Encrypt data")}>
-    <input type="checkbox" bind:checked={encryptionSettings.encrypt} />
-</InputRow>
+<Check title={translateMessage("Encrypt data")} bind:value={encryptionSettings.encrypt} />
 {#if encryptionSettings.encrypt}
     <InputRow label={translateMessage("Passphrase")}>
         <Password
@@ -92,14 +91,9 @@
             "Use the same passphrase on every device. If you lose it, the data in the bucket cannot be recovered."
         )}
     </InfoNote>
-    <InputRow label={translateMessage("Obfuscate file paths")}>
-        <input type="checkbox" bind:checked={encryptionSettings.usePathObfuscation} />
-    </InputRow>
-    <InfoNote>
-        {translateMessage(
-            "Also hides file names, folder structure, sizes, and timestamps from the bucket."
-        )}
-    </InfoNote>
+    <Check title={translateMessage("Obfuscate file paths")} bind:value={encryptionSettings.usePathObfuscation}>
+        {translateMessage("Also hides file names, folder structure, sizes, and timestamps from the bucket.")}
+    </Check>
 {/if}
 <InfoNote error visible={error !== ""}>{error}</InfoNote>
 {#if processing}

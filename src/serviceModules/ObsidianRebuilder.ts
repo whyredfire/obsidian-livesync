@@ -15,6 +15,11 @@ export class ObsidianRebuilder extends ServiceRebuilder {
         this.confirm = services.UI.confirm;
     }
 
+    /** Red Sync has no optional features (Customisation Sync, Hidden File Sync) to mention. */
+    override informOptionalFeatures(): Promise<void> {
+        return Promise.resolve();
+    }
+
     override $fetchLocal(makeLocalChunkBeforeSync?: boolean, preventMakeLocalFilesBeforeSync?: boolean): Promise<void> {
         return this.reportFetchFailure(super.$fetchLocal(makeLocalChunkBeforeSync, preventMakeLocalFilesBeforeSync));
     }

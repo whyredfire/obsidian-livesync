@@ -349,3 +349,176 @@ body.is-mobile .livesync-compatibility-review-notice {
 .livesync-stat-value[hidden] {
     display: none;
 }
+
+/* Initial setup */
+.rs-setup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-5);
+}
+
+.rs-setup-lead {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.rs-choices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-2);
+}
+
+.dialog-host button.rs-choice {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--size-2-1);
+    height: auto;
+    margin: 0;
+    padding: var(--size-4-3) var(--size-4-4);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    background: var(--background-primary-alt);
+    box-shadow: none;
+    text-align: left;
+    white-space: normal;
+    cursor: pointer;
+}
+
+.dialog-host button.rs-choice:hover,
+.dialog-host button.rs-choice:focus-visible {
+    border-color: var(--interactive-accent);
+    background: var(--background-modifier-hover);
+}
+
+.rs-choice-title {
+    color: var(--text-normal);
+    font-size: var(--font-ui-medium);
+    font-weight: var(--font-semibold);
+}
+
+.rs-choice-description {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+.rs-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-3);
+}
+
+.rs-section-title {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.rs-field {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: var(--size-2-2);
+    min-width: 0;
+}
+
+.rs-field-pair {
+    display: flex;
+    gap: var(--size-4-3);
+}
+
+.rs-field-label {
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-medium);
+}
+
+.rs-optional {
+    color: var(--text-faint);
+    font-weight: var(--font-normal);
+}
+
+/* The dialogue host makes every "label > span" a fixed-width block; keep this one inline. */
+.dialog-host .rs-field-label > .rs-optional {
+    display: inline;
+    width: auto;
+    margin-left: var(--size-2-1);
+}
+
+.rs-setup .rs-field > input {
+    width: 100%;
+}
+
+.rs-password {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+}
+
+.rs-password > input {
+    flex: 1;
+    min-width: 0;
+}
+
+.dialog-host .rs-password > button {
+    margin-left: 0;
+}
+
+.rs-hint {
+    margin: 0;
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+}
+
+.rs-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-4-4);
+}
+
+.rs-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-1);
+}
+
+.rs-number {
+    width: 7em;
+    text-align: right;
+}
+
+.rs-message {
+    margin: 0;
+    padding: var(--size-4-2) var(--size-4-3);
+    border-radius: var(--radius-s);
+    font-size: var(--font-ui-small);
+}
+
+.rs-message-error {
+    background: rgba(var(--color-red-rgb), 0.1);
+    color: var(--text-error);
+}
+
+.rs-message-warning {
+    background: rgba(var(--color-orange-rgb), 0.1);
+    color: var(--text-warning);
+}
+
+.rs-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--size-4-2);
+    padding-bottom: var(--size-4-4);
+}
+
+.dialog-host .rs-actions > button {
+    margin-left: 0;
+}
+
+body.is-mobile .rs-field-pair {
+    flex-direction: column;
+}

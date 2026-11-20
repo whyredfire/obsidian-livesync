@@ -39,7 +39,7 @@ describe("projectReplicationStatusLabel", () => {
     it("exposes the remote-request count as a numeric status item", () => {
         const projection = projectReplicationStatusLabel(stats(), { remoteOperationCount: 1, trackedRequestCount: 12 });
         expect(projection.parts.find((part) => part.key === "network")).toMatchObject({
-            text: "📲 🌐",
+            text: "remote requests ",
             value: 12,
             suffix: " ",
         });
@@ -58,7 +58,7 @@ describe("projectReplicationStatusLabel", () => {
             { remoteOperationCount: 0, trackedRequestCount: 1 }
         );
 
-        expect(projection.message).toBe("🌐1 Sync: ⚡ ↑ 4 (8) ↓ 2 (3)");
+        expect(projection.message).toBe("requests 1 Sync: connected ↑ 4 (8) ↓ 2 (3)");
         expect(projection.parts.map((part) => part.key)).toEqual([
             "network",
             "sync",
@@ -75,15 +75,15 @@ describe("projectReplicationStatusLabel", () => {
 
     it("keeps the existing status icons when CouchDB is idle or not present", () => {
         const statuses = [
-            ["CLOSED", "⏹"],
-            ["COMPLETED", "⏹"],
-            ["NOT_CONNECTED", "⏹"],
-            ["STARTED", "🌀"],
-            ["PAUSED", "💤"],
-            ["CONNECTED", "⚡"],
-            ["JOURNAL_SEND", "📦↑"],
-            ["JOURNAL_RECEIVE", "📦↓"],
-            ["ERRORED", "⚠"],
+            ["CLOSED", "idle"],
+            ["COMPLETED", "idle"],
+            ["NOT_CONNECTED", "idle"],
+            ["STARTED", "starting"],
+            ["PAUSED", "paused"],
+            ["CONNECTED", "connected"],
+            ["JOURNAL_SEND", "sending"],
+            ["JOURNAL_RECEIVE", "receiving"],
+            ["ERRORED", "error"],
         ] as const;
 
         for (const [syncStatus, icon] of statuses) {
@@ -106,7 +106,7 @@ describe("projectReplicationStatusLabel", () => {
 
         const noFastForward = projectReplicationStatusLabel(stats(), noNetworkActivity);
         expect(noFastForward.parts.some((part) => part.key.startsWith("ff-"))).toBe(false);
-        expect(noFastForward.message).toBe("Sync: ⚡ ↑ 0 ↓ 0");
+        expect(noFastForward.message).toBe("Sync: connected ↑ 0 ↓ 0");
     });
 
     it("shows fast-forward checking with zero arrivals, transferred data, and the final idle count", () => {
@@ -118,7 +118,7 @@ describe("projectReplicationStatusLabel", () => {
             }),
             noNetworkActivity
         );
-        expect(checking.icon).toBe("⏩");
+        expect(checking.icon).toBe("checking");
         expect(checking.parts[2]).toMatchObject({ key: "arrived", value: 0 });
 
         const transferred = projectReplicationStatusLabel(
@@ -129,12 +129,12 @@ describe("projectReplicationStatusLabel", () => {
             noNetworkActivity,
             { pull: 1200 }
         );
-        expect(transferred.icon).toBe("⚡");
-        expect(transferred.message).toBe("Sync: ⚡ (⏩↓ 1200) ↑ 0 ↓ 7");
+        expect(transferred.icon).toBe("connected");
+        expect(transferred.message).toBe("Sync: connected (checked ↓ 1200) ↑ 0 ↓ 7");
         expect(transferred.parts.map((part) => part.key)).toEqual(["sync", "ff-pull", "sent", "arrived"]);
         expect(transferred.parts[1]).toMatchObject({
             key: "ff-pull",
-            text: " (⏩↓ ",
+            text: " (checked ↓ ",
             value: 1200,
             suffix: ")",
             title: "Compared CouchDB pull feed entries",
@@ -150,8 +150,8 @@ describe("projectReplicationStatusLabel", () => {
             noNetworkActivity,
             { push: 71975 }
         );
-        expect(pushChecking.icon).toBe("⏩");
-        expect(pushChecking.message).toBe("Sync: ⏩ (⏩↑ 71975) ↑ 0 ↓ 0");
+        expect(pushChecking.icon).toBe("checking");
+        expect(pushChecking.message).toBe("Sync: checking (checked ↑ 71975) ↑ 0 ↓ 0");
         expect(pushChecking.parts[1]).toMatchObject({ key: "ff-push", value: 71975 });
 
         const bothChecking = projectReplicationStatusLabel(
@@ -159,7 +159,7 @@ describe("projectReplicationStatusLabel", () => {
             noNetworkActivity,
             { push: 71975, pull: 10 }
         );
-        expect(bothChecking.message).toBe("Sync: ⏩ (⏩↑ 71975) (⏩↓ 10) ↑ 0 ↓ 0");
+        expect(bothChecking.message).toBe("Sync: checking (checked ↑ 71975) (checked ↓ 10) ↑ 0 ↓ 0");
 
         const idle = projectReplicationStatusLabel(
             stats({
@@ -170,8 +170,8 @@ describe("projectReplicationStatusLabel", () => {
             noNetworkActivity,
             { pull: 1200 }
         );
-        expect(idle.icon).toBe("⚡");
-        expect(idle.message).toBe("Sync: ⚡ (⏩↓ 1200) ↑ 0 ↓ 7");
+        expect(idle.icon).toBe("connected");
+        expect(idle.message).toBe("Sync: connected (checked ↓ 1200) ↑ 0 ↓ 7");
     });
 
     it("keeps the error icon ahead of an active CouchDB checking indicator", () => {
@@ -186,7 +186,7 @@ describe("projectReplicationStatusLabel", () => {
             noNetworkActivity
         );
 
-        expect(projection.icon).toBe("⚠");
+        expect(projection.icon).toBe("error");
     });
 });
 

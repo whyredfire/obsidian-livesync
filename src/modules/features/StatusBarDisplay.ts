@@ -181,13 +181,13 @@ export function createChunkFetchCounterLabel(
     const retryingCount = reactiveSource(0);
     const initialLabel = createPaddedCounterLabel(
         initialCount,
-        "🛄",
+        "chunks ",
         STATUS_COUNTER_INACTIVE_LINGER_MS,
         scheduleTimeout
     );
     const retryingLabel = createPaddedCounterLabel(
         retryingCount,
-        "🔁",
+        "retrying ",
         STATUS_COUNTER_INACTIVE_LINGER_MS,
         scheduleTimeout
     );

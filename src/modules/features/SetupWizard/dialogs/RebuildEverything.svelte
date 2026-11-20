@@ -2,129 +2,34 @@
     import DialogHeader from "@/modules/services/LiveSyncUI/components/DialogHeader.svelte";
     import Guidance from "@/modules/services/LiveSyncUI/components/Guidance.svelte";
     import Decision from "@/modules/services/LiveSyncUI/components/Decision.svelte";
-    import Question from "@/modules/services/LiveSyncUI/components/Question.svelte";
-    import Option from "@/modules/services/LiveSyncUI/components/Option.svelte";
-    import Options from "@/modules/services/LiveSyncUI/components/Options.svelte";
-    import Instruction from "@/modules/services/LiveSyncUI/components/Instruction.svelte";
     import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
     import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
-    import ExtraItems from "@/modules/services/LiveSyncUI/components/ExtraItems.svelte";
-    import Check from "@/modules/services/LiveSyncUI/components/Check.svelte";
     import { $msg as msg } from "@/common/translation";
-    import {
-        TYPE_CANCEL,
-        TYPE_BACKUP_DONE,
-        TYPE_BACKUP_SKIPPED,
-        TYPE_UNABLE_TO_BACKUP,
-        type RebuildEverythingResult,
-        type ResultTypeBackup,
-    } from "./setupDialogTypes";
+    import { TYPE_BACKUP_SKIPPED, TYPE_CANCEL, type RebuildEverythingResult } from "./setupDialogTypes";
 
     type Props = {
         setResult: (result: RebuildEverythingResult) => void;
     };
     const { setResult }: Props = $props();
 
-    let backupType = $state<ResultTypeBackup>(TYPE_CANCEL);
-    let confirmationCheck1 = $state(false);
-    let confirmationCheck2 = $state(false);
-    let confirmationCheck3 = $state(false);
-    const canProceed = $derived.by(() => {
-        const backupConfirmed = backupType === TYPE_BACKUP_DONE || backupType === TYPE_BACKUP_SKIPPED;
-        return backupConfirmed && confirmationCheck1 && confirmationCheck2 && confirmationCheck3;
-    });
-    let preventFetchingConfig = $state(false);
-
     function commit() {
-        setResult({
-            backup: backupType,
-            extra: {
-                preventFetchingConfig,
-            },
-        });
+        // This device's settings are authoritative when it uploads the master copy.
+        setResult({ backup: TYPE_BACKUP_SKIPPED, extra: { preventFetchingConfig: true } });
     }
 </script>
 
-<DialogHeader title={msg("Final Confirmation: Overwrite Server Data with This Device's Files")} />
-<Guidance
-    >{msg(
-        "This procedure will first delete all existing synchronisation data from the server. Following this, the server data will be completely rebuilt, using the current state of your Vault on this device (including its local database) as"
-    )} <strong>{msg("the single, authoritative master copy")}</strong>.</Guidance
->
-<InfoNote>
+<DialogHeader title={msg("Upload this vault to R2")} />
+<Guidance>
     {msg(
-        "You should perform this operation only in exceptional circumstances, such as when the server data is completely corrupted, when changes on all other devices are no longer needed, or when the database size has become unusually large in comparison to the Vault size."
+        "This vault will be uploaded to the bucket as the master copy. Anything already stored in the bucket is deleted first."
+    )}
+</Guidance>
+<InfoNote warning>
+    {msg(
+        "Other devices will need to fetch from R2 again afterwards. If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe first."
     )}
 </InfoNote>
-<Guidance important title={msg("⚠️ Please Confirm the Following")}>
-    <Check
-        title={msg("I understand that all changes made on other smartphones or computers possibly could be lost.")}
-        bind:value={confirmationCheck1}
-    >
-        <InfoNote>{msg("There is a way to resolve this on other devices.")}</InfoNote>
-        <InfoNote>{msg("Of course, we can back up the data before proceeding.")}</InfoNote>
-    </Check>
-    <Check
-        title={msg(
-            "I understand that other devices will no longer be able to synchronise, and will need to be reset the synchronisation information."
-        )}
-        bind:value={confirmationCheck2}
-    >
-        <InfoNote>{msg("by resetting the remote, you will be informed on other devices.")}</InfoNote>
-    </Check>
-    <Check
-        title={msg("I understand that this action is irreversible once performed.")}
-        bind:value={confirmationCheck3}
-    />
-</Guidance>
-<hr />
-<Instruction>
-    <Question>{msg("Have you created a backup before proceeding?")}</Question>
-    <InfoNote warning>
-        {msg(
-            "This is an extremely powerful operation. We strongly recommend that you copy your Vault folder to a safe location."
-        )}
-    </InfoNote>
-    <Options>
-        <Option
-            selectedValue={TYPE_BACKUP_DONE}
-            title={msg("I have created a backup of my Vault.")}
-            bind:value={backupType}
-        />
-        <Option
-            selectedValue={TYPE_BACKUP_SKIPPED}
-            title={msg("I understand the risks and will proceed without a backup.")}
-            bind:value={backupType}
-        />
-        <Option
-            selectedValue={TYPE_UNABLE_TO_BACKUP}
-            title={msg("I am unable to create a backup of my Vaults.")}
-            bind:value={backupType}
-        >
-            <InfoNote error visible={backupType === TYPE_UNABLE_TO_BACKUP}>
-                <strong
-                    >{msg("You should create a new synchronisation destination and rebuild your data there.")} <br />
-                    {msg(
-                        "After that, synchronise to a brand new vault on each other device with the new remote one by one."
-                    )}</strong
-                >
-            </InfoNote>
-        </Option>
-    </Options>
-</Instruction>
-<Instruction>
-    <ExtraItems title={msg("Advanced")}>
-        <Check title={msg("Use this device's settings")} bind:value={preventFetchingConfig}>
-            <InfoNote>{msg("Skips checking and applying synchronisation settings from the remote.")}</InfoNote>
-        </Check>
-    </ExtraItems>
-</Instruction>
 <UserDecisions>
-    <Decision
-        title={msg("I Understand, Overwrite Server")}
-        important
-        disabled={!canProceed}
-        commit={() => commit()}
-    />
+    <Decision title={msg("Upload this vault")} important commit={() => commit()} />
     <Decision title={msg("Cancel")} commit={() => setResult(TYPE_CANCEL)} />
 </UserDecisions>

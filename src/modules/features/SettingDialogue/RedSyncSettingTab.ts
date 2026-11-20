@@ -9,6 +9,7 @@ import {
 } from "@vrtmrz/livesync-commonlib/replication";
 import { SetupManager, UserMode } from "@/modules/features/SetupManager.ts";
 import { closeObsidianSettings } from "@/modules/coreObsidian/UI/obsidianSettings.ts";
+import { getStatsForNerds, setStatsForNerds } from "@/modules/services/ObsidianSettingService.ts";
 import { copySetupURI } from "@/serviceFeatures/setupObsidian/setupUri.ts";
 import { encodeSetupSettingsAsQR } from "@/serviceFeatures/setupObsidian/qrCode.ts";
 import { VIEW_TYPE_LOG } from "@/modules/features/Log/LogPaneView.ts";
@@ -130,6 +131,30 @@ export class RedSyncSettingTab extends PluginSettingTab {
                     )
             );
 
+        new Setting(containerEl)
+            .setName("Bucket size warning")
+            .setDesc("Warn when the data in the bucket grows beyond this many megabytes. 0 means no warning.")
+            .addText((text) => {
+                text.inputEl.type = "number";
+                text.inputEl.min = "0";
+                text.inputEl.step = "100";
+                text.setPlaceholder("0").setValue(String(Math.max(0, settings.notifyThresholdOfRemoteStorageSize)));
+                text.inputEl.addEventListener("change", () => {
+                    const megabytes = Number(text.getValue());
+                    if (!Number.isInteger(megabytes) || megabytes < 0) {
+                        text.setValue(
+                            String(
+                                Math.max(0, this.services.setting.currentSettings().notifyThresholdOfRemoteStorageSize)
+                            )
+                        );
+                        return;
+                    }
+                    fireAndForget(() =>
+                        this.services.setting.applyPartial({ notifyThresholdOfRemoteStorageSize: megabytes }, true)
+                    );
+                });
+            });
+
         // Encryption
         new Setting(containerEl).setName("Encryption").setHeading();
         const encryptionStatus = settings.encrypt
@@ -240,6 +265,19 @@ export class RedSyncSettingTab extends PluginSettingTab {
                             )
                         )
                     )
+            );
+
+        // Developer
+        new Setting(containerEl).setName("Developer").setHeading();
+        new Setting(containerEl)
+            .setName("Show stats for nerds")
+            .setDesc(
+                "Show synchronisation statistics in the status bar and the editor, and show progress notifications. When off, only urgent messages and dialogues appear; everything is still recorded in the log."
+            )
+            .addToggle((toggle) =>
+                toggle
+                    .setValue(getStatsForNerds(this.services.setting))
+                    .onChange((enabled) => fireAndForget(() => setStatsForNerds(this.services.setting, enabled)))
             );
         new Setting(containerEl)
             .setName("Log")

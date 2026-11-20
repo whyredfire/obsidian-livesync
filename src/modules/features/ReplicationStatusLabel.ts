@@ -151,23 +151,28 @@ export function projectReplicationStatusLabel(
         case "CLOSED":
         case "COMPLETED":
         case "NOT_CONNECTED":
-            icon = "⏹";
+            icon = "idle";
             break;
         case "STARTED":
-            icon = "🌀";
+            icon = "starting";
             break;
         case "PAUSED":
-            icon = "💤";
+            icon = "paused";
             break;
         case "CONNECTED":
         case "JOURNAL_SEND":
         case "JOURNAL_RECEIVE":
-            icon = stats.syncStatus === "JOURNAL_SEND" ? "📦↑" : stats.syncStatus === "JOURNAL_RECEIVE" ? "📦↓" : "⚡";
+            icon =
+                stats.syncStatus === "JOURNAL_SEND"
+                    ? "sending"
+                    : stats.syncStatus === "JOURNAL_RECEIVE"
+                      ? "receiving"
+                      : "connected";
             pushRemaining = remainingSequenceLabel("push-remaining", lastSyncPushSeq, maxPushSeq);
             pullRemaining = remainingSequenceLabel("pull-remaining", lastSyncPullSeq, maxPullSeq);
             break;
         case "ERRORED":
-            icon = "⚠";
+            icon = "error";
             break;
         default:
             icon = "?";
@@ -179,7 +184,7 @@ export function projectReplicationStatusLabel(
         couchDB !== undefined &&
         couchDB.phase !== "idle" &&
         (couchDB.pull?.checking === true || couchDB.push?.checking === true);
-    if (isFastForwardChecking) icon = "⏩";
+    if (isFastForwardChecking) icon = "checking";
 
     const visibleFastForwardCounts: FastForwardCheckedChanges = {};
     if (couchDB !== undefined) {
@@ -192,7 +197,7 @@ export function projectReplicationStatusLabel(
     }
     const fastForwardLabels = (["push", "pull"] as const)
         .filter((direction) => visibleFastForwardCounts[direction] !== undefined)
-        .map((direction) => ` (⏩${direction === "push" ? "↑" : "↓"} ${visibleFastForwardCounts[direction]})`);
+        .map((direction) => ` (checked ${direction === "push" ? "↑" : "↓"} ${visibleFastForwardCounts[direction]})`);
     const fastForwardLabel = fastForwardLabels.join("");
 
     const parts: StatusBarPart[] = [];
@@ -214,7 +219,7 @@ export function projectReplicationStatusLabel(
         if (count === undefined) continue;
         parts.push({
             key: `ff-${direction}`,
-            text: ` (⏩${direction === "push" ? "↑" : "↓"} `,
+            text: ` (checked ${direction === "push" ? "↑" : "↓"} `,
             value: count,
             suffix: ")",
             title: `Compared CouchDB ${direction} feed entries`,

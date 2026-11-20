@@ -1,8 +1,8 @@
-/** Status icon for a finite remote operation whose lifetime is known. */
-export const REMOTE_OPERATION_ACTIVITY_ICON = "📲";
+/** Status label for a finite remote operation whose lifetime is known. */
+export const REMOTE_OPERATION_ACTIVITY_ICON = "remote";
 
-/** Status icon for approximate physical remote-request activity. */
-export const REMOTE_REQUEST_ACTIVITY_ICON = "🌐";
+/** Status label for approximate physical remote-request activity. */
+export const REMOTE_REQUEST_ACTIVITY_ICON = "requests ";
 
 /** Avoids hiding very short remote requests before the status bar can render them. */
 export const REMOTE_REQUEST_ACTIVITY_MINIMUM_VISIBLE_MS = 150;

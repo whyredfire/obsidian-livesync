@@ -10,10 +10,8 @@ import { createNewVaultSettings } from "@/common/core/settings/newVaultSettings"
 import { upsertRemoteConfigurationInPlace } from "@vrtmrz/livesync-commonlib/remote-configurations";
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
 import { isObjectDifferent } from "@vrtmrz/livesync-commonlib/compat/common/utils";
-import Intro from "./SetupWizard/dialogs/Intro.svelte";
-import SelectMethodNewUser from "./SetupWizard/dialogs/SelectMethodNewUser.svelte";
-import SelectMethodExisting from "./SetupWizard/dialogs/SelectMethodExisting.svelte";
-import ScanQRCode from "./SetupWizard/dialogs/ScanQRCode.svelte";
+import SetupStart from "./SetupWizard/dialogs/SetupStart.svelte";
+import SetupForm from "./SetupWizard/dialogs/SetupForm.svelte";
 import UseSetupURI from "./SetupWizard/dialogs/UseSetupURI.svelte";
 import OutroNewUser from "./SetupWizard/dialogs/OutroNewUser.svelte";
 import OutroExistingUser from "./SetupWizard/dialogs/OutroExistingUser.svelte";
@@ -28,7 +26,10 @@ import type {
     OutroAskUserModeResultType,
     OutroExistingUserResultType,
     OutroNewUserResultType,
-    ScanQRCodeResultType,
+    SetupFormInitialData,
+    SetupFormResultType,
+    SetupPreparation,
+    SetupStartResultType,
     SetupRemoteBucketResultType,
     SetupRemoteE2EEResultType,
     SetupRemoteE2EEInitialData,
@@ -43,6 +44,14 @@ import {
 } from "@/serviceFeatures/setupObsidian/setupActivationLifecycle.ts";
 import { REMOTE_RESOURCE_KINDS } from "@vrtmrz/livesync-commonlib/replication";
 import { resolveInitialPathIdentity } from "@/common/core/replication/initialPathIdentity";
+import { withOwnedRemoteResource } from "@/common/core/replication/ownedRemoteResource";
+import {
+    buildSetupSettings,
+    emptySetupFormValues,
+    type SetupFormValues,
+    type SetupMode,
+} from "@/serviceFeatures/setupObsidian/setupForm";
+import { clearPendingSetup, markPendingSetup } from "@/serviceFeatures/setupObsidian/pendingSetup";
 
 function copySettingsForRemoteProfileUpdate(settings: ObsidianLiveSyncSettings): ObsidianLiveSyncSettings {
     return {
@@ -141,62 +150,117 @@ export class SetupManager extends AbstractModule {
     }
 
     /**
-     * Starts the onboarding process
-     * @returns Promise that resolves to true if onboarding completed successfully, false otherwise
+     * Starts the initial setup: choose how to start, then fill in one form.
+     * @returns Promise that resolves to true if the setup was applied (Obsidian then restarts)
      */
     async startOnBoarding(): Promise<boolean> {
-        const isUserNewOrExisting = await this.dialogManager.openWithExplicitCancel(Intro);
-        if (isUserNewOrExisting === "new-user") {
-            await this.onOnboard(UserMode.NewUser);
-        } else if (isUserNewOrExisting === "existing-user") {
-            await this.onOnboard(UserMode.ExistingUser);
-        } else if (isUserNewOrExisting === "cancelled") {
-            this._log("Onboarding cancelled by user.", LOG_LEVEL_NOTICE);
+        const choice = await this.dialogManager.openWithExplicitCancel<SetupStartResultType>(SetupStart);
+        if (choice === "new" || choice === "join") return await this.runSetupForm(choice);
+        if (choice === "uri") return await this.onUseSetupURI(UserMode.ExistingUser);
+        this._log("Setup cancelled.", LOG_LEVEL_VERBOSE);
+        return false;
+    }
+
+    /** Show the single setup form and apply its result. */
+    async runSetupForm(mode: SetupMode, values: SetupFormValues = emptySetupFormValues()): Promise<boolean> {
+        const base = createNewVaultSettings();
+        const result = await this.dialogManager.openWithExplicitCancel<SetupFormResultType, SetupFormInitialData>(
+            SetupForm,
+            { mode, values, prepare: (formValues) => this.prepareSetup(base, formValues, mode) }
+        );
+        if (result === "back") return await this.startOnBoarding();
+        if (result === "cancelled") {
+            this._log("Setup cancelled.", LOG_LEVEL_VERBOSE);
             return false;
         }
-        return false;
+        return await this.completeSetup(result.settings, mode);
     }
 
     /**
-     *  Handles the onboarding process based on user mode
-     * @param userMode
-     * @returns Promise that resolves to true if onboarding completed successfully, false otherwise
+     * Test the connection and inspect the bucket before anything is applied.
+     * Joining an empty bucket is refused; starting a new sync over existing data needs a second confirmation.
      */
-    async onOnboard(userMode: UserMode): Promise<boolean> {
-        const originalSetting = userMode === UserMode.NewUser ? createNewVaultSettings() : this.core.settings;
-        if (userMode === UserMode.NewUser) {
-            //Ask how to apply initial setup
-            const method = await this.dialogManager.openWithExplicitCancel(SelectMethodNewUser);
-            if (method === "use-setup-uri") {
-                await this.onUseSetupURI(userMode);
-            } else if (method === "configure-manually") {
-                await this.onConfigureManually(originalSetting, userMode);
-            } else if (method === "cancelled") {
-                this._log("Onboarding cancelled by user.", LOG_LEVEL_NOTICE);
-                return false;
-            }
-        } else if (userMode === UserMode.ExistingUser) {
-            const method = await this.dialogManager.openWithExplicitCancel(SelectMethodExisting);
-            if (method === "use-setup-uri") {
-                await this.onUseSetupURI(userMode);
-            } else if (method === "configure-manually") {
-                await this.onConfigureManually(originalSetting, userMode);
-            } else if (method === "scan-qr-code") {
-                await this.onPromptQRCodeInstruction();
-            } else if (method === "cancelled") {
-                this._log("Onboarding cancelled by user.", LOG_LEVEL_NOTICE);
-                return false;
-            }
+    async prepareSetup(
+        base: ObsidianLiveSyncSettings,
+        values: SetupFormValues,
+        mode: SetupMode
+    ): Promise<SetupPreparation> {
+        const settings = await buildSetupSettings(base, values);
+        const unreachable = "Could not connect to the bucket. Check the endpoint, keys, and bucket name.";
+        const connection = await this.services.replicator.createRemoteResource(
+            REMOTE_RESOURCE_KINDS.CONNECTION,
+            settings
+        );
+        if (!connection) return { status: "error", message: unreachable };
+        const checked = await withOwnedRemoteResource(connection, (probe) =>
+            probe.check({ createIfMissing: mode === "new", showResult: false })
+        );
+        if (!checked.ok) return { status: "error", message: unreachable };
+
+        const inspector = await this.services.replicator.createRemoteResource(
+            REMOTE_RESOURCE_KINDS.CONNECTION,
+            settings
+        );
+        const inspection = await withOwnedRemoteResource(
+            inspector!,
+            async (probe) => await probe.inspectPathIdentity?.()
+        );
+        const bucketIsEmpty = inspection === undefined || inspection.status === "empty";
+        if (!bucketIsEmpty && inspection) {
+            settings.pathNormalizationVersion = inspection.pathNormalizationVersion;
         }
-        return false;
+        if (mode === "join" && bucketIsEmpty) {
+            return {
+                status: "error",
+                message:
+                    "This bucket has no Red Sync data yet. On the device that has your notes, choose Start a new sync first.",
+            };
+        }
+        if (mode === "new" && !bucketIsEmpty) {
+            return {
+                status: "confirm",
+                message:
+                    "This bucket already contains synced notes. Uploading this vault will replace them for every device.",
+                confirmLabel: "Replace and upload",
+                settings,
+            };
+        }
+        return { status: "ok", settings };
     }
 
     /**
-     * Handles setup using a setup URI
-     * @param userMode
-     * @param setupURI
-     * @returns Promise that resolves to true if onboarding completed successfully, false otherwise
+     * Apply settings from the setup form or a setup URI and restart into the
+     * upload (new) or download (join). No further confirmation is asked, and
+     * automatic synchronisation switches on when the operation completes.
      */
+    async completeSetup(
+        settings: ObsidianLiveSyncSettings,
+        mode: SetupMode,
+        options: { imported?: boolean } = {}
+    ): Promise<boolean> {
+        const prepared = {
+            ...copySettingsForRemoteProfileUpdate({ ...this.settings, ...settings }),
+            isConfigured: true,
+        };
+        if (!options.imported) upsertRemoteConfigurationInPlace(prepared, "s3", { activate: true });
+        const newConf = await this.services.setting.adjustSettings(prepared);
+        await markPendingSetup(this.core, mode);
+        try {
+            const scheduled = await applySettingsWithScheduledInitialisation(
+                this.core.rebuilder,
+                mode === "new" ? "rebuild" : "fetch",
+                async () => {
+                    await this.applySetting(newConf, mode === "new" ? UserMode.NewUser : UserMode.ExistingUser);
+                }
+            );
+            if (!scheduled) await clearPendingSetup(this.core);
+            return scheduled;
+        } catch (error) {
+            await clearPendingSetup(this.core);
+            throw error;
+        }
+    }
+
     /** Red Sync can use only an S3-compatible (Cloudflare R2) remote. */
     private isSupportedImport(settings: ObsidianLiveSyncSettings): boolean {
         const activeId = settings.activeConfigurationId?.trim();
@@ -231,6 +295,9 @@ export class SetupManager extends AbstractModule {
         }
         this._log("Setup URI dialog closed.", LOG_LEVEL_VERBOSE);
         if (!this.isSupportedImport(newSetting)) return false;
+        if (!this.settings.isConfigured) {
+            return await this.completeSetup(normaliseCompleteImportedSettings(newSetting), "join", { imported: true });
+        }
         return await this.onConfirmApplySettingsFromWizard(normaliseCompleteImportedSettings(newSetting), userMode);
     }
 
@@ -251,8 +318,8 @@ export class SetupManager extends AbstractModule {
             BucketSyncSetting
         >(SetupRemoteBucket, currentSetting);
         if (bucketConf === "cancelled") {
-            this._log("Manual configuration cancelled.", LOG_LEVEL_NOTICE);
-            return await this.onOnboard(userMode);
+            this._log("Manual configuration cancelled.", LOG_LEVEL_VERBOSE);
+            return false;
         }
         const newSetting = {
             ...copySettingsForRemoteProfileUpdate(currentSetting),
@@ -338,37 +405,6 @@ export class SetupManager extends AbstractModule {
         return await this.onConfirmApplySettingsFromWizard(newSetting, userMode);
     }
 
-    /**
-     * Handles manual configuration flow (E2EE + select server)
-     * @param originalSetting
-     * @param userMode
-     * @returns
-     */
-    async onConfigureManually(originalSetting: ObsidianLiveSyncSettings, userMode: UserMode): Promise<boolean> {
-        const e2eeConf = await this.dialogManager.openWithExplicitCancel<
-            SetupRemoteE2EEResultType,
-            SetupRemoteE2EEInitialData
-        >(SetupRemoteE2EE, { settings: originalSetting, newVault: userMode === UserMode.NewUser });
-        if (e2eeConf === "cancelled") {
-            this._log("Manual configuration cancelled.", LOG_LEVEL_NOTICE);
-            return await this.onOnboard(userMode);
-        }
-        const currentSetting = {
-            ...originalSetting,
-            ...e2eeConf,
-        } as ObsidianLiveSyncSettings;
-        return await this.onSelectServer(currentSetting, userMode);
-    }
-
-    /**
-     * Handles server selection during manual configuration
-     * @param currentSetting
-     * @param userMode
-     * @returns
-     */
-    async onSelectServer(currentSetting: ObsidianLiveSyncSettings, userMode: UserMode): Promise<boolean> {
-        return await this.onBucketManualSetup(userMode, currentSetting, true);
-    }
     /**
      * Confirms and applies settings obtained from the wizard
      * @param newConf
@@ -476,20 +512,6 @@ export class SetupManager extends AbstractModule {
     }
 
     /**
-     * Prompts the user with QR code scanning instructions
-     * @returns Promise that resolves to false as QR code instruction dialog does not yield settings directly
-     */
-
-    async onPromptQRCodeInstruction(): Promise<boolean> {
-        const qrResult = await this.dialogManager.open<ScanQRCodeResultType>(ScanQRCode);
-        this._log("QR Code dialog closed.", LOG_LEVEL_VERBOSE);
-        // Result is not used, but log it for debugging.
-        this._log(qrResult, LOG_LEVEL_VERBOSE);
-        // QR Code instruction dialog never yields settings directly.
-        return false;
-    }
-
-    /**
      * Decodes settings from a QR code string and applies them
      * @param qr QR code string containing encoded settings
      * @returns Promise that resolves to true if settings applied successfully, false otherwise
@@ -503,6 +525,9 @@ export class SetupManager extends AbstractModule {
             return false;
         }
         if (!this.isSupportedImport(newSettings)) return false;
+        if (!this.settings.isConfigured) {
+            return await this.completeSetup(newSettings, "join", { imported: true });
+        }
         return await this.onConfirmApplySettingsFromWizard(newSettings, UserMode.Unknown);
     }
 

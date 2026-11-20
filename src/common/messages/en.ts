@@ -23,15 +23,6 @@ export const englishMessages = {
     "(Not recommended) If set, credentials will be stored in the file.":
         "(Not recommended) If set, credentials will be stored in the file.",
     "(Obsolete) Use an old adapter for compatibility": "(Obsolete) Use an old adapter for compatibility",
-    "(Select this if you already have another synchronising device.) This option adds this device to the same synchronisation.":
-        "(Select this if you already have another synchronising device.) This option adds this device to the same synchronisation.",
-    "(Select this if you are configuring this device as the first synchronisation device.) This option is suitable if you are new to LiveSync and want to set it up from scratch.":
-        "(Select this if you are configuring this device as the first synchronisation device.) Your vault will be uploaded to the bucket.",
-    "⚙️ Apply settings only (advanced)": "⚙️ Apply settings only (advanced)",
-    "⚠️ Important Notice": "⚠️ Important Notice",
-    "⚠️ Initialise or overwrite the remote": "⚠️ Initialise or overwrite the remote",
-    "⚠️ Please Confirm the Following": "⚠️ Please Confirm the Following",
-    "🔗 Join this device": "🔗 Join this device",
     "A local database operation failed while the file was being reflected.":
         "A local database operation failed while the file was being reflected.",
     "A network error prevented the file content from being retrieved.":
@@ -45,13 +36,10 @@ export const englishMessages = {
     "Access Key": "Access Key",
     "Access Key ID": "Access Key ID",
     "Active Remote Type": "Active Remote Type",
-    Advanced: "Advanced",
     "After restarting, the data on this device will be uploaded to the server as the 'master copy'. Please be aware that any unintended data currently on the server will be completely overwritten.":
         "After restarting, the data on this device will be uploaded to the server as the 'master copy'. Please be aware that any unintended data currently on the server will be completely overwritten.",
     "After restarting, the database on this device will be rebuilt using data from the server. If there are any unsynchronised files in this vault, conflicts may occur with the server data.":
         "After restarting, the database on this device will be rebuilt using data from the server. If there are any unsynchronised files in this vault, conflicts may occur with the server data.",
-    "After that, synchronise to a brand new vault on each other device with the new remote one by one.":
-        "After that, synchronise to a brand new vault on each other device with the new remote one by one.",
     "All revisions and chunk availability below are a snapshot of this device's local database; the remote is not queried. Review the Vault-relative path, document identifier, content-derived chunk identifiers, and metadata before sharing this report. File contents are omitted.":
         "All revisions and chunk availability below are a snapshot of this device's local database; the remote is not queried. Review the Vault-relative path, document identifier, content-derived chunk identifiers, and metadata before sharing this report. File contents are omitted.",
     "Allow sleep during synchronisation": "Allow sleep during synchronisation",
@@ -67,6 +55,7 @@ export const englishMessages = {
     "Apply Latest Change if Conflicting": "Apply Latest Change if Conflicting",
     "Apply pending changes now": "Apply pending changes now",
     "Apply preset configuration": "Apply preset configuration",
+    "Apply settings only (advanced)": "Apply settings only (advanced)",
     "Apply the settings": "Apply the settings",
     "Apply these saved choices to the current remote?\n\nCurrent remote: ${REMOTE}\n\n- ${STAGE1}\n- ${STAGE2}\n\nThe fetch flag may remain after an interruption or an incomplete cleanup. Continue only if this fetch is still intended.":
         "Apply these saved choices to the current remote?\n\nCurrent remote: ${REMOTE}\n\n- ${STAGE1}\n- ${STAGE2}\n\nThe fetch flag may remain after an interruption or an incomplete cleanup. Continue only if this fetch is still intended.",
@@ -87,8 +76,6 @@ export const englishMessages = {
         "Before v0.17.16, we used an old adapter for the local database. Now the new adapter is preferred. However, it needs local database rebuilding. Please disable this toggle when you have enough time. If leave it enabled, also while fetching from the remote database, you will be asked to disable this.",
     "Begin inspection": "Begin inspection",
     "Bucket Name": "Bucket Name",
-    "by resetting the remote, you will be informed on other devices.":
-        "by resetting the remote, you will be informed on other devices.",
     "Calculating database usage": "Calculating database usage",
     Cancel: "Cancel",
     "Cancel all and reboot": "Cancel all and reboot",
@@ -103,12 +90,10 @@ export const englishMessages = {
         "Chunk revisions are always derived from their content. This stored key is retained only for compatibility.",
     "Chunk Splitter": "Chunk Splitter",
     Close: "Close",
-    "Close this dialog": "Close this dialog",
     "Cloudflare R2 Bucket": "Cloudflare R2 Bucket",
     "Comma separated `.gitignore, .dockerignore`": "Comma separated `.gitignore, .dockerignore`",
     "Compare time and take newer": "Compare time and take newer",
     "Conflict & Deletion Options": "Conflict & Deletion Options",
-    "Connection Method": "Connection Method",
     "Connection settings or compatibility checks prevented the content request.":
         "Connection settings or compatibility checks prevented the content request.",
     "Content-derived chunk revisions (obsolete setting)": "Content-derived chunk revisions (obsolete setting)",
@@ -150,7 +135,6 @@ export const englishMessages = {
     "Desktop only. Allow sleep on this device even when the general option is disabled.":
         "Desktop only. Allow sleep on this device even when the general option is disabled.",
     "Device name": "Device name",
-    "Device Setup Method": "Device Setup Method",
     "Diagnostic report": "Diagnostic report",
     "Disables logging, only shows notifications. Please disable if you report an issue.":
         "Disables logging, only shows notifications. Please disable if you report an issue.",
@@ -216,7 +200,6 @@ export const englishMessages = {
     "End-to-End Encryption Algorithm": "End-to-End Encryption Algorithm",
     "Endpoint URL": "Endpoint URL",
     "Enhance chunk size": "Enhance chunk size",
-    "Enter Setup URI": "Enter Setup URI",
     "Enter the S3 API credentials of your R2 bucket. You can create an API token with Object Read & Write permission in the Cloudflare dashboard under R2 > Manage API tokens.":
         "Enter the S3 API credentials of your R2 bucket. You can create an API token with Object Read & Write permission in the Cloudflare dashboard under R2 > Manage API tokens.",
     "Enter your Access Key ID": "Enter your Access Key ID",
@@ -229,7 +212,6 @@ export const englishMessages = {
     "Failed to connect to the server. Please check your settings.":
         "Failed to connect to the server. Please check your settings.",
     "Failed to derive the encryption key: ${reason}": "Failed to derive the encryption key: ${reason}",
-    "Failed to parse Setup-URI.": "Failed to parse Setup-URI.",
     Fetch: "Fetch",
     "Fetch chunks on demand": "Fetch chunks on demand",
     "Fetch database with previous behaviour": "Fetch database with previous behaviour",
@@ -238,40 +220,18 @@ export const englishMessages = {
     Filename: "Filename",
     "Files with modification times greater than this value (in seconds since the Unix epoch) will not have their events reflected. Set to 0 to disable this limit.":
         "Files with modification times greater than this value (in seconds since the Unix epoch) will not have their events reflected. Set to 0 to disable this limit.",
-    "Final Confirmation: Overwrite Server Data with This Device's Files":
-        "Final Confirmation: Overwrite Server Data with This Device's Files",
     "Finalise the process and resume normal operation": "Finalise the process and resume normal operation",
-    "First, please select the option that best describes your current situation.":
-        "First, please select the option that best describes your current situation.",
     "Folder Prefix": "Folder Prefix",
     "Forces the file to be synced when opened.": "Forces the file to be synced when opened.",
     "Furthermore, if conflicts are already present in the server data, they will be synchronised to this device as they are, and you will need to resolve them locally.":
         "Furthermore, if conflicts are already present in the server data, they will be synchronised to this device as they are, and you will need to resolve them locally.",
     "Handle files as Case-Sensitive": "Handle files as Case-Sensitive",
-    "Have you created a backup before proceeding?": "Have you created a backup before proceeding?",
     "Hide password": "Hide password",
     "How should files that were deleted on other devices be handled?\n\n- **${NEWER_CLEANUP}**: Delete local files if they were deleted on remote.\n  This is useful if you want to keep your vault clean and consistent across devices, but please make sure you have a backup if there is already any important data in your vault.\n- **${NEWER_SYNC_ALL}**: Recreate remote files even if they were deleted on remote.\n  This option will keep all your local files, but it may cause duplicates if there are files that exist on local but not on remote. You can clean up these duplicates manually after the synchronisation.":
         "How should files that were deleted on other devices be handled?\n\n- **${NEWER_CLEANUP}**: Delete local files if they were deleted on remote.\n  This is useful if you want to keep your vault clean and consistent across devices, but please make sure you have a backup if there is already any important data in your vault.\n- **${NEWER_SYNC_ALL}**: Recreate remote files even if they were deleted on remote.\n  This option will keep all your local files, but it may cause duplicates if there are files that exist on local but not on remote. You can clean up these duplicates manually after the synchronisation.",
     "How to display network errors when the sync server is unreachable.":
         "How to display network errors when the sync server is unreachable.",
     "How to handle extra existing local files?": "How to handle extra existing local files?",
-    "How would you like to configure the connection to your server?":
-        "How would you like to configure the connection to your server?",
-    "I am adding a device to an existing synchronisation setup":
-        "I am adding a device to an existing synchronisation setup",
-    "I am setting this up for the first time": "I am setting this up for the first time",
-    "I am unable to create a backup of my Vault.": "I am unable to create a backup of my Vault.",
-    "I am unable to create a backup of my Vaults.": "I am unable to create a backup of my Vaults.",
-    "I have created a backup of my Vault.": "I have created a backup of my Vault.",
-    "I understand that all changes made on other smartphones or computers possibly could be lost.":
-        "I understand that all changes made on other smartphones or computers possibly could be lost.",
-    "I understand that other devices will no longer be able to synchronise, and will need to be reset the synchronisation information.":
-        "I understand that other devices will no longer be able to synchronise, and will need to be reset the synchronisation information.",
-    "I understand that this action is irreversible once performed.":
-        "I understand that this action is irreversible once performed.",
-    "I understand the risks and will proceed without a backup.":
-        "I understand the risks and will proceed without a backup.",
-    "I Understand, Overwrite Server": "I Understand, Overwrite Server",
     "If disabled(toggled), chunks will be split on the UI thread (Previous behaviour).":
         "When enabled, chunks are split on the UI thread (the previous behaviour).",
     "If enabled per-filed efficient customization sync will be used. We need a small migration when enabling this. And all devices should be updated to v0.23.18. Once we enabled this, we lost a compatibility with old versions.":
@@ -307,17 +267,19 @@ export const englishMessages = {
         "If this is set, changes to local files which are matched by the ignore files will be skipped. Remote changes are determined using local ignore files.",
     "If this option is enabled, PouchDB will hold the connection open for 60 seconds, and if no change arrives in that time, close and reopen the socket, instead of holding it open indefinitely. Useful when a proxy limits request duration but can increase resource usage.":
         "If this option is enabled, PouchDB will hold the connection open for 60 seconds, and if no change arrives in that time, close and reopen the socket, instead of holding it open indefinitely. Useful when a proxy limits request duration but can increase resource usage.",
+    "If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe before continuing.":
+        "If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe before continuing.",
     "If you have unsynchronised changes in your Vault on this device, they will likely diverge from the server's versions after the reset. This may result in a large number of file conflicts.":
         "If you have unsynchronised changes in your Vault on this device, they will likely diverge from the server's versions after the reset. This may result in a large number of file conflicts.",
-    "If you understand the risks and still wish to proceed, select so.":
-        "If you understand the risks and still wish to proceed, select so.",
     Ignore: "Ignore",
     "Ignore files": "Ignore files",
     IMPORTANT: "IMPORTANT",
+    "Important Notice": "Important Notice",
     "In this scenario, Red Sync will recreate metadata for every file and deliberately generate conflicts. Where the file content is identical, these conflicts will be resolved automatically.":
         "In this scenario, Red Sync will recreate metadata for every file and deliberately generate conflicts. Where the file content is identical, these conflicts will be resolved automatically.",
     "Include remote database": "Include remote database",
     "Incubate Chunks in Document": "Incubate Chunks in Document",
+    "Initialise or overwrite the remote": "Initialise or overwrite the remote",
     "Inspect database integrity": "Inspect database integrity",
     "Inspect normal-file Metadata, current conflicts, and suspect content against the Vault. Remote inspection supports CouchDB. Older history is excluded; findings do not authorise deletion.":
         "Inspect normal-file Metadata, current conflicts, and suspect content against the Vault. Remote inspection supports CouchDB. Older history is excluded; findings do not authorise deletion.",
@@ -332,8 +294,7 @@ export const englishMessages = {
     "Internal timestamp for resolving compatible tweak mismatches.":
         "Internal timestamp for resolving compatible tweak mismatches.",
     "Interval (sec)": "Interval (sec)",
-    "It is strongly advised to create a backup before proceeding. Continuing without a backup may lead to data loss.":
-        "It is strongly advised to create a backup before proceeding. Continuing without a backup may lead to data loss.",
+    "Join this device": "Join this device",
     "JWT Algorithm": "JWT Algorithm",
     "K.long_p2p_sync": "Peer-to-Peer Sync",
     "K.title_p2p_sync": "Peer-to-Peer Sync",
@@ -436,8 +397,6 @@ export const englishMessages = {
     "moduleLog.pathComponentTooLong":
         "This path contains a file or folder name longer than ${maxBytes} UTF-8 bytes. It may not work on some Android and Linux file systems.",
     "moduleLog.showLog": "Show Log",
-    "moduleLog.syncMode.configured": "Configured automatic synchronisation: ${modes}.",
-    "moduleLog.syncMode.manual": "Manual synchronisation only. Automatic synchronisation is disabled.",
     "moduleMigration.fix0256.buttons.checkItLater": "Check it later",
     "moduleMigration.fix0256.buttons.DismissForever": "I have fixed it, and do not ask again",
     "moduleMigration.fix0256.buttons.fix": "Fix",
@@ -472,8 +431,6 @@ export const englishMessages = {
     'Not all messages have been translated. And, please revert to "Default" when reporting errors.':
         'Not all messages have been translated. And, please revert to "Default" when reporting errors.',
     "Not now": "Not now",
-    'Note that you can generate a new Setup URI by running the "Copy settings as a new Setup URI" command in the command palette.':
-        'Note that you can generate a new Setup URI by running the "Copy settings as a new Setup URI" command in the command palette.',
     "Notify all setting files": "Notify all setting files",
     "Notify customized": "Notify customized",
     "Notify when other device has newly customized.": "Notify when other device has newly customized.",
@@ -486,19 +443,13 @@ export const englishMessages = {
     "Number of changes to sync at a time. Defaults to 50. Minimum is 2.":
         "Number of changes to sync at a time. Defaults to 50. Minimum is 2.",
     "Obfuscate file paths": "Obfuscate file paths",
-    "obsidianLiveSyncSettingTab.optionOnEvents": "On events",
-    "Of course, we can back up the data before proceeding.": "Of course, we can back up the data before proceeding.",
     Ok: "Ok",
-    "On the source device, from the command palette, run the 'Show settings as a QR code' command.":
-        "On the source device, from the command palette, run the 'Show settings as a QR code' command.",
-    "On the source device, open Obsidian.": "On the source device, open Obsidian.",
-    "On this device, please keep this Vault open.": "On this device, please keep this Vault open.",
-    "On this device, switch to the camera app or use a QR code scanner to scan the displayed QR code.":
-        "On this device, switch to the camera app or use a QR code scanner to scan the displayed QR code.",
     "Only secure (HTTPS) connections can be used on Obsidian Mobile.":
         "Only secure (HTTPS) connections can be used on Obsidian Mobile.",
     "Optional, e.g. my-vault/": "Optional, e.g. my-vault/",
     "Original names": "Original names",
+    "Other devices will need to fetch from R2 again afterwards. If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe first.":
+        "Other devices will need to fetch from R2 again afterwards. If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe first.",
     Overwrite: "Overwrite",
     "Overwrite all with remote files": "Overwrite all with remote files",
     "Overwrite Server Data with This Device's Files": "Overwrite Server Data with This Device's Files",
@@ -519,26 +470,17 @@ export const englishMessages = {
     "Partial Usage results are available as JSON so their coverage and reasons stay with the rows.":
         "Partial Usage results are available as JSON so their coverage and reasons stay with the rows.",
     Passphrase: "Passphrase",
-    "Passphrase is required.": "Passphrase is required.",
     "Passphrase of sensitive configuration items": "Passphrase of sensitive configuration items",
     password: "password",
     Password: "Password",
-    "Paste the Setup URI generated from one of your active devices.":
-        "Paste the Setup URI generated from one of your active devices.",
     Path: "Path",
     "Path identity mode": "Path identity mode",
     "Per-file-saved customization sync": "Per-file-saved customization sync",
     "Periodic Sync interval": "Periodic Sync interval",
     "Pick a file to resolve conflict": "Pick a file to resolve conflict",
-    "Please enter the Setup URI that was generated during server installation or on another device, along with the vault passphrase.":
-        "Please enter the Setup URI that was generated during server installation or on another device, along with the vault passphrase.",
-    "Please follow the steps below to import settings from your existing device.":
-        "Please follow the steps below to import settings from your existing device.",
     "PLEASE NOTE": "PLEASE NOTE",
     "Please select 'Cancel' explicitly to cancel this operation.":
         "Please select 'Cancel' explicitly to cancel this operation.",
-    "Please select a method to import the settings from another device.":
-        "Please select a method to import the settings from another device.",
     "Please select an option to proceed": "Please select an option to proceed",
     "Please select the button below to restart and proceed to the data fetching confirmation.":
         "Please select the button below to restart and proceed to the data fetching confirmation.",
@@ -549,7 +491,6 @@ export const englishMessages = {
         "Please use V2, V1 is deprecated and will be removed in the future, It was not a very appropriate algorithm. Only for compatibility V1 is kept.",
     Presets: "Presets",
     "Proceed to the next step.": "Proceed to the next step.",
-    "Proceed with Setup URI": "Proceed with Setup URI",
     "Process files even if seems to be corrupted": "Process files even if seems to be corrupted",
     "Process small files in the foreground": "Process small files in the foreground",
     "Property Encryption": "Property Encryption",
@@ -608,7 +549,6 @@ export const englishMessages = {
     "Saved fetch choices could not be read": "Saved fetch choices could not be read",
     "Saving will be performed forcefully after this number of seconds.":
         "Saving will be performed forcefully after this number of seconds.",
-    "Scan a QR Code (Recommended for mobile)": "Scan a QR Code (Recommended for mobile)",
     "Scan changes on customization sync": "Scan changes on customization sync",
     "Scan customization automatically": "Scan customization automatically",
     "Scan customization before replicating.": "Scan customization before replicating.",
@@ -616,9 +556,6 @@ export const englishMessages = {
     "Scan customization periodically": "Scan customization periodically",
     "Scan for hidden files before replication": "Scan for hidden files before replication",
     "Scan hidden files periodically": "Scan hidden files periodically",
-    "Scan QR Code": "Scan QR Code",
-    "Scan the QR code displayed on an active device using this device's camera.":
-        "Scan the QR code displayed on an active device using this device's camera.",
     "Seconds, 0 to disable": "Seconds, 0 to disable",
     "Seconds. Saving to the local database will be delayed until this value after we stop typing or saving.":
         "Seconds. Saving to the local database will be delayed until this value after we stop typing or saving.",
@@ -646,7 +583,6 @@ export const englishMessages = {
         "Setup Complete: Preparing to Fetch Synchronisation Data",
     "Setup Complete: Preparing to Initialise Server": "Setup Complete: Preparing to Initialise Server",
     "Setup URI dialog cancelled.": "Setup URI dialog cancelled.",
-    "Setup-URI": "Setup-URI",
     "Setup.QRCode":
         'We have generated a QR code to transfer the settings. Please scan the QR code with your phone or other device.\nNote: The QR code is not encrypted, so be careful to open this.\n\n>[!FOR YOUR EYES ONLY]-\n> <div class="sls-qr">${qr_image}</div>',
     "Should we keep folders that don't have any files inside?":
@@ -668,8 +604,7 @@ export const englishMessages = {
     "Signalling Relays": "Signalling Relays",
     "Since you have chosen to overwrite all local files with remote data, **how would you like to handle local files that are not present in the remote database?**\n\n- **${DELETE_ALL}**: Local-only files and remote-deleted files will be removed.\n  This option will make your local vault exactly the same as the remote database, but please make sure you have a backup if there is any important data in your vault.\n- **${DELETE_NONE}**: All existing local files will be preserved.\n  This option will keep all your local files, but it may cause duplicates if there are files that exist on local but not on remote. You can clean up these duplicates manually after the synchronisation.":
         "Since you have chosen to overwrite all local files with remote data, **how would you like to handle local files that are not present in the remote database?**\n\n- **${DELETE_ALL}**: Local-only files and remote-deleted files will be removed.\n  This option will make your local vault exactly the same as the remote database, but please make sure you have a backup if there is any important data in your vault.\n- **${DELETE_NONE}**: All existing local files will be preserved.\n  This option will keep all your local files, but it may cause duplicates if there are files that exist on local but not on remote. You can clean up these duplicates manually after the synchronisation.",
-    "Skips checking and applying synchronisation settings from the remote.":
-        "Skips checking and applying synchronisation settings from the remote.",
+    "Size warning (MB)": "Size warning (MB)",
     "Some files could not be reflected in the Vault. Review the affected files.":
         "Some files could not be reflected in the Vault. Review the affected files.",
     "Some files failed to synchronise. What would you like to do?":
@@ -746,10 +681,6 @@ export const englishMessages = {
     "The selected remote has no saved synchronisation settings. This is normal for a new remote. Use this device's settings, or cancel if you expected existing settings.":
         "The selected remote has no saved synchronisation settings. This is normal for a new remote. Use this device's settings, or cancel if you expected existing settings.",
     "The server did not authorise the content request.": "The server did not authorise the content request.",
-    "The Setup-URI does not appear to be valid. Please check that you have copied it correctly.":
-        "The Setup-URI does not appear to be valid. Please check that you have copied it correctly.",
-    "The Setup-URI is valid and ready to use.": "The Setup-URI is valid and ready to use.",
-    "the single, authoritative master copy": "the single, authoritative master copy",
     "The subject for JWT authentication. Mostly username.": "The subject for JWT authentication. Mostly username.",
     "the synchronisation data on the server will be built based on the current data on this device.":
         "the synchronisation data on the server will be built based on the current data on this device.",
@@ -757,26 +688,21 @@ export const englishMessages = {
         "The TURN servers to use for P2P connections. Multiple servers can be separated by commas.",
     "The username for the TURN servers.": "The username for the TURN servers.",
     "There are no files waiting for reflection review.": "There are no files waiting for reflection review.",
-    "There is a way to resolve this on other devices.": "There is a way to resolve this on other devices.",
     "There may be differences between the files in this Vault and the server.":
         "There may be differences between the files in this Vault and the server.",
     "This file has ${COUNT} unresolved versions. They will be reviewed one pair at a time.":
         "This file has ${COUNT} unresolved versions. They will be reviewed one pair at a time.",
     "This file has unresolved conflicts.": "This file has unresolved conflicts.",
-    "This first setup has several short steps because it confirms encryption, the connection method, and which device provides the initial data. Once it is complete, additional devices can reuse a Setup URI.":
-        "This first setup has several short steps because it confirms encryption, the connection method, and which device provides the initial data. Once it is complete, additional devices can reuse a Setup URI.",
-    "This is an extremely powerful operation. We strongly recommend that you copy your Vault folder to a safe location.":
-        "This is an extremely powerful operation. We strongly recommend that you copy your Vault folder to a safe location.",
     "This passphrase will not be copied to another device. It will be set to `Default` until you configure it again.":
         "This passphrase will not be copied to another device. It will be set to `Default` until you configure it again.",
-    "This procedure will first delete all existing synchronisation data from the server. Following this, the server data will be completely rebuilt, using the current state of your Vault on this device (including its local database) as":
-        "This procedure will first delete all existing synchronisation data from the server. Following this, the server data will be completely rebuilt, using the current state of your Vault on this device (including its local database) as",
     "This report contains original paths and identifiers. Review them before sharing.":
         "This report contains original paths and identifiers. Review them before sharing.",
     "This report uses temporary pseudonyms. Counts and relationships remain visible.":
         "This report uses temporary pseudonyms. Counts and relationships remain visible.",
     "This Vault is empty, or contains only new files that are not on the server.":
         "This Vault is empty, or contains only new files that are not on the server.",
+    "This vault will be uploaded to the bucket as the master copy. Anything already stored in the bucket is deleted first.":
+        "This vault will be uploaded to the bucket as the master copy. Anything already stored in the bucket is deleted first.",
     "This will rebuild the local database on this device using the most recent data from the server. This action is designed to resolve synchronisation inconsistencies and restore correct functionality.":
         "This will rebuild the local database on this device using the most recent data from the server. This action is designed to resolve synchronisation inconsistencies and restore correct functionality.",
     "To minimise the creation of new conflicts": "To minimise the creation of new conflicts",
@@ -838,25 +764,16 @@ export const englishMessages = {
         "Fetch disables **automatic synchronisation** on this device.\n\nAfter restarting, follow the Fetch prompts. Wait for the files to appear in the Vault and review them, then turn on **Automatic sync** in the Red Sync settings.",
     "Ui.SetupWizard.OutroExistingUser.Next": "Next",
     "Ui.SetupWizard.OutroExistingUser.RestartConfirmationTitle": "Before restarting",
-    "Ui.SetupWizard.SelectExisting.ManualOption": "Configure a remote manually",
-    "Ui.SetupWizard.SelectExisting.ManualOptionDesc":
-        "Configure the same remote as your other devices again manually. This is intended only for advanced users.",
-    "Ui.SetupWizard.SelectExisting.ProceedManual": "Proceed with manual configuration",
-    "Ui.SetupWizard.SelectNew.Guidance": "We will now configure the synchronisation connection.",
-    "Ui.SetupWizard.SelectNew.ManualOption": "Configure a remote manually",
     "Ui.SetupWizard.SelectNew.ManualOptionDesc":
         "Enter your Cloudflare R2 bucket details and choose whether to encrypt your notes. Choose this when setting up your first device.",
-    "Ui.SetupWizard.SelectNew.ProceedManual": "Proceed with manual configuration",
-    "Ui.SetupWizard.SelectNew.Question": "How would you like to configure this synchronisation connection?",
-    "Ui.SetupWizard.SelectNew.SetupUriOptionDesc":
-        "A Setup URI is a single string containing connection and authentication details. When one is available from a setup script, it provides a simple and secure configuration method.",
     "Unique name between all synchronized devices. To edit this setting, please disable customization sync once.":
         "Unique name between all synchronized devices. To edit this setting, please disable customization sync once.",
     "Unless you are certain, selecting this options is bit dangerous. It assumes that the server configuration is compatible with this device. If this is not the case, data loss may occur. Please ensure you know what you are doing.":
         "Unless you are certain, selecting this options is bit dangerous. It assumes that the server configuration is compatible with this device. If this is not the case, data loss may occur. Please ensure you know what you are doing.",
+    "Upload this vault": "Upload this vault",
+    "Upload this vault to R2": "Upload this vault to R2",
     "Use a folder prefix to keep several vaults in one bucket. Leave it blank to use the bucket root.":
         "Use a folder prefix to keep several vaults in one bucket. Leave it blank to use the bucket root.",
-    "Use a Setup URI (Recommended)": "Use a Setup URI (Recommended)",
     "Use Custom HTTP Handler": "Use Custom HTTP Handler",
     "Use dynamic iteration count": "Use dynamic iteration count",
     "Use Internal API": "Use Internal API",
@@ -881,12 +798,12 @@ export const englishMessages = {
     "Wait for a bounded local quiet period before processing file updates in LiveSync mode, reducing intermediate database updates while delaying their reflection to remote devices.":
         "Wait for a bounded local quiet period before processing file updates in LiveSync mode, reducing intermediate database updates while delaying their reflection to remote devices.",
     Waiting: "Waiting",
+    "Warn when the data in the bucket grows beyond this size. Leave it at 0 for no warning.":
+        "Warn when the data in the bucket grows beyond this size. Leave it at 0 for no warning.",
     "Warning! This will have a serious impact on performance. And the logs will not be synchronised under the default name. Please be careful with logs; they often contain your confidential information.":
         "Warning! This will have a serious impact on performance. And the logs will not be synchronised under the default name. Please be careful with logs; they often contain your confidential information.",
     "We are about to retrieve the remote data.\n\nFirstly, how shall we handle the data retrieved from this remote source?\n\n- **${NEWER_WINS}**: Compares the modified time of files and takes the newer one.\n  If you have been using Red Sync and have made changes on multiple devices, this option may be suitable for you as it tries to merge changes based on modified time.\n- **${REMOTE_WINS}**: Remote data is the source of truth.\n  If you are new to using Red Sync. This option may be easiest to understand and get started with.\n  It will overwrite all your local files with the remote data, so please make sure you have a backup if there is any important data in your vault.\n- **${DETAILED}**: Opens the detailed setup wizard.\n  If you want to have more control over the synchronisation process, or want to review the changes before applying, you can choose this option to use the detailed flow.":
         "We are about to retrieve the remote data.\n\nFirstly, how shall we handle the data retrieved from this remote source?\n\n- **${NEWER_WINS}**: Compares the modified time of files and takes the newer one.\n  If you have been using Red Sync and have made changes on multiple devices, this option may be suitable for you as it tries to merge changes based on modified time.\n- **${REMOTE_WINS}**: Remote data is the source of truth.\n  If you are new to using Red Sync. This option may be easiest to understand and get started with.\n  It will overwrite all your local files with the remote data, so please make sure you have a backup if there is any important data in your vault.\n- **${DETAILED}**: Opens the detailed setup wizard.\n  If you want to have more control over the synchronisation process, or want to review the changes before applying, you can choose this option to use the detailed flow.",
-    "We recommend that you copy your Vault folder to a safe location. This will provide a safeguard in case a large number of conflicts arise, or if you accidentally synchronise with an incorrect destination.":
-        "We recommend that you copy your Vault folder to a safe location. This will provide a safeguard in case a large number of conflicts arise, or if you accidentally synchronise with an incorrect destination.",
     "We will now guide you through a few questions to simplify the synchronisation setup.":
         "We will now guide you through a few questions to simplify the synchronisation setup.",
     "Welcome to Red Sync": "Welcome to Red Sync",
@@ -901,17 +818,8 @@ export const englishMessages = {
     "Write credentials in the file": "Write credentials in the file",
     "Write logs into the file": "Write logs into the file",
     "xxhash64 is the current default.": "xxhash64 is the current default.",
-    "Yes, I want to add this device to my existing synchronisation":
-        "Yes, I want to add this device to my existing synchronisation",
-    "Yes, I want to set up a new synchronisation": "Yes, I want to set up a new synchronisation",
-    "You are adding this device to an existing synchronisation setup.":
-        "You are adding this device to an existing synchronisation setup.",
     "You can enable this setting to process the files with size mismatches, these files can be created by some APIs or integrations.":
         "You can enable this setting to process the files with size mismatches, these files can be created by some APIs or integrations.",
-    "You should create a new synchronisation destination and rebuild your data there.":
-        "You should create a new synchronisation destination and rebuild your data there.",
-    "You should perform this operation only in exceptional circumstances, such as when the server data is completely corrupted, when changes on all other devices are no longer needed, or when the database size has become unusually large in comparison to the Vault size.":
-        "You should perform this operation only in exceptional circumstances, such as when the server data is completely corrupted, when changes on all other devices are no longer needed, or when the database size has become unusually large in comparison to the Vault size.",
 } as const;
 
 export type MessageKey = keyof typeof englishMessages;

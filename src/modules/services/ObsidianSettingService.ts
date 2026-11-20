@@ -9,6 +9,31 @@ import {
 } from "@vrtmrz/livesync-commonlib/compat/services/base/SettingService";
 import type { ObsidianServiceContext } from "@/modules/services/ObsidianServiceContext";
 import { RED_SYNC_ENFORCED_SETTINGS } from "@/common/core/settings/newVaultSettings";
+import { EVENT_STATS_FOR_NERDS_CHANGED } from "@/common/events.ts";
+
+const STATS_FOR_NERDS_KEY = "redSyncStatsForNerds";
+
+/** Whether detailed notifications and synchronisation statistics are shown on this device. */
+export function getStatsForNerds(setting: SettingService<ObsidianServiceContext>): boolean {
+    return (setting as Partial<ObsidianSettingService<ObsidianServiceContext>>).statsForNerds === true;
+}
+
+export async function setStatsForNerds(
+    setting: SettingService<ObsidianServiceContext>,
+    enabled: boolean
+): Promise<void> {
+    await (setting as ObsidianSettingService<ObsidianServiceContext>).setStatsForNerds(enabled);
+}
+
+/**
+ * A negative storage-size threshold means 'not configured', which makes the
+ * synchronisation engine ask about it. Red Sync treats an unset threshold as
+ * unlimited (0) and keeps a configured value when the engine tries to reset it.
+ */
+function normaliseSizeThreshold(requested: number | undefined, current: number | undefined): number | undefined {
+    if (requested === undefined || requested >= 0) return requested;
+    return current !== undefined && current >= 0 ? current : 0;
+}
 
 export function normaliseObsidianSettingsData(data: unknown): ObsidianLiveSyncSettings | undefined {
     if (typeof data !== "object" || data === null || Array.isArray(data)) return undefined;
@@ -16,6 +41,19 @@ export function normaliseObsidianSettingsData(data: unknown): ObsidianLiveSyncSe
 }
 
 export class ObsidianSettingService<T extends ObsidianServiceContext> extends SettingService<T> {
+    private _statsForNerds = false;
+
+    get statsForNerds(): boolean {
+        return this._statsForNerds;
+    }
+
+    async setStatsForNerds(enabled: boolean): Promise<void> {
+        if (this._statsForNerds === enabled) return;
+        await this.config.setObject(STATS_FOR_NERDS_KEY, enabled);
+        this._statsForNerds = enabled;
+        this.context.events.emitEvent(EVENT_STATS_FOR_NERDS_CHANGED);
+    }
+
     constructor(context: T, dependencies: SettingServiceDependencies) {
         super(context, dependencies);
         this.onSettingSaved.addHandler((settings) => {
@@ -32,7 +70,30 @@ export class ObsidianSettingService<T extends ObsidianServiceContext> extends Se
     override async adjustSettings(settings: ObsidianLiveSyncSettings): Promise<ObsidianLiveSyncSettings> {
         const adjusted = await super.adjustSettings(settings);
         Object.assign(adjusted, RED_SYNC_ENFORCED_SETTINGS);
+        adjusted.notifyThresholdOfRemoteStorageSize = normaliseSizeThreshold(
+            adjusted.notifyThresholdOfRemoteStorageSize,
+            undefined
+        )!;
         return adjusted;
+    }
+
+    override applyPartial(partial: Partial<ObsidianLiveSyncSettings>, saveImmediately?: boolean): Promise<void> {
+        if (partial.notifyThresholdOfRemoteStorageSize !== undefined) {
+            partial = {
+                ...partial,
+                notifyThresholdOfRemoteStorageSize: normaliseSizeThreshold(
+                    partial.notifyThresholdOfRemoteStorageSize,
+                    this.settings?.notifyThresholdOfRemoteStorageSize
+                ),
+            };
+        }
+        return super.applyPartial(partial, saveImmediately);
+    }
+
+    override async loadSettings(): Promise<void> {
+        await super.loadSettings();
+        this._statsForNerds = (await this.config.getObject(STATS_FOR_NERDS_KEY)) === true;
+        this.context.events.emitEvent(EVENT_STATS_FOR_NERDS_CHANGED);
     }
 
     protected override async saveData(data: ObsidianLiveSyncSettings): Promise<void> {

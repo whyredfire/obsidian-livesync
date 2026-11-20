@@ -8,19 +8,14 @@
     import Instruction from "@/modules/services/LiveSyncUI/components/Instruction.svelte";
     import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
     import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
-    import ExtraItems from "@/modules/services/LiveSyncUI/components/ExtraItems.svelte";
-    import Check from "@/modules/services/LiveSyncUI/components/Check.svelte";
     import { $msg as translateMessage } from "@/common/translation";
     import {
-        TYPE_BACKUP_DONE,
         TYPE_BACKUP_SKIPPED,
         TYPE_CANCEL,
         TYPE_IDENTICAL,
         TYPE_INDEPENDENT,
-        TYPE_UNABLE_TO_BACKUP,
         TYPE_UNBALANCED,
         type FetchEverythingResult,
-        type ResultTypeBackup,
         type ResultTypeVault,
     } from "./setupDialogTypes";
 
@@ -29,23 +24,13 @@
     };
     const { setResult }: Props = $props();
     let vaultType = $state<ResultTypeVault>(TYPE_CANCEL);
-    let backupType = $state<ResultTypeBackup>(TYPE_CANCEL);
-    const canProceed = $derived.by(() => {
-        return (
-            (vaultType === TYPE_IDENTICAL || vaultType === TYPE_INDEPENDENT || vaultType === TYPE_UNBALANCED) &&
-            (backupType === TYPE_BACKUP_DONE || backupType === TYPE_BACKUP_SKIPPED)
-        );
-    });
-    let preventFetchingConfig = $state(false);
+    const canProceed = $derived(
+        vaultType === TYPE_IDENTICAL || vaultType === TYPE_INDEPENDENT || vaultType === TYPE_UNBALANCED
+    );
 
     function commit() {
-        setResult({
-            vault: vaultType,
-            backup: backupType,
-            extra: {
-                preventFetchingConfig,
-            },
-        });
+        // Keep this device's settings; they already match the bucket's configuration.
+        setResult({ vault: vaultType, backup: TYPE_BACKUP_SKIPPED, extra: { preventFetchingConfig: true } });
     }
 </script>
 
@@ -55,7 +40,7 @@
         "This will rebuild the local database on this device using the most recent data from the server. This action is designed to resolve synchronisation inconsistencies and restore correct functionality."
     )}</Guidance
 >
-<Guidance important title={translateMessage("⚠️ Important Notice")}>
+<Guidance important title={translateMessage("Important Notice")}>
     <strong
         >{translateMessage(
             "If you have unsynchronised changes in your Vault on this device, they will likely diverge from the server's versions after the reset. This may result in a large number of file conflicts."
@@ -103,51 +88,11 @@
         </Option>
     </Options>
 </Instruction>
-<hr />
-<Instruction>
-    <Question>{translateMessage("Have you created a backup before proceeding?")}</Question>
-    <InfoNote>
-        {translateMessage(
-            "We recommend that you copy your Vault folder to a safe location. This will provide a safeguard in case a large number of conflicts arise, or if you accidentally synchronise with an incorrect destination."
-        )}
-    </InfoNote>
-    <Options>
-        <Option
-            selectedValue={TYPE_BACKUP_DONE}
-            title={translateMessage("I have created a backup of my Vault.")}
-            bind:value={backupType}
-        />
-        <Option
-            selectedValue={TYPE_BACKUP_SKIPPED}
-            title={translateMessage("I understand the risks and will proceed without a backup.")}
-            bind:value={backupType}
-        />
-        <Option
-            selectedValue={TYPE_UNABLE_TO_BACKUP}
-            title={translateMessage("I am unable to create a backup of my Vault.")}
-            bind:value={backupType}
-        >
-            <InfoNote error visible={backupType === TYPE_UNABLE_TO_BACKUP}>
-                <strong
-                    >{translateMessage(
-                        "It is strongly advised to create a backup before proceeding. Continuing without a backup may lead to data loss."
-                    )}
-                </strong>
-                <br />
-                {translateMessage("If you understand the risks and still wish to proceed, select so.")}
-            </InfoNote>
-        </Option>
-    </Options>
-</Instruction>
-<Instruction>
-    <ExtraItems title={translateMessage("Advanced")}>
-        <Check title={translateMessage("Use this device's settings")} bind:value={preventFetchingConfig}>
-            <InfoNote>
-                {translateMessage("Skips checking and applying synchronisation settings from the remote.")}
-            </InfoNote>
-        </Check>
-    </ExtraItems>
-</Instruction>
+<InfoNote>
+    {translateMessage(
+        "If this vault contains notes you cannot afford to lose, copy the vault folder somewhere safe before continuing."
+    )}
+</InfoNote>
 <UserDecisions>
     <Decision
         title={translateMessage("Reset and Resume Synchronisation")}

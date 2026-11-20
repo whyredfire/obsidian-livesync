@@ -10,10 +10,8 @@ import { SettingService } from "@vrtmrz/livesync-commonlib/compat/services/base/
 import { ServiceContext } from "@vrtmrz/livesync-commonlib/context";
 import { createNewVaultSettings } from "@/common/core/settings/newVaultSettings";
 
-vi.mock("./SetupWizard/dialogs/Intro.svelte", () => ({ default: {} }));
-vi.mock("./SetupWizard/dialogs/SelectMethodNewUser.svelte", () => ({ default: {} }));
-vi.mock("./SetupWizard/dialogs/SelectMethodExisting.svelte", () => ({ default: {} }));
-vi.mock("./SetupWizard/dialogs/ScanQRCode.svelte", () => ({ default: {} }));
+vi.mock("./SetupWizard/dialogs/SetupStart.svelte", () => ({ default: {} }));
+vi.mock("./SetupWizard/dialogs/SetupForm.svelte", () => ({ default: {} }));
 vi.mock("./SetupWizard/dialogs/UseSetupURI.svelte", () => ({ default: {} }));
 vi.mock("./SetupWizard/dialogs/OutroNewUser.svelte", () => ({ default: {} }));
 vi.mock("./SetupWizard/dialogs/OutroExistingUser.svelte", () => ({ default: {} }));
@@ -94,6 +92,7 @@ function createSetupManager() {
             dialogManager,
         },
         setting,
+        vault: { vaultName: () => "vault" },
         replicator: {
             createRemoteResource: vi.fn(async () => ({
                 inspectPathIdentity: vi.fn(async () => ({ status: "configured", pathNormalizationVersion: 0 })),
@@ -214,18 +213,6 @@ describe("SetupManager", () => {
         await manager.onBucketManualSetup(mode, createLegacyRemoteSetting(), activate);
         expect(core.services.replicator.createRemoteResource).not.toHaveBeenCalled();
         expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ pathNormalizationVersion: 0 }), mode, activate);
-    });
-
-    it("starts manual new-user setup from the recommended new-Vault settings", async () => {
-        const { manager, dialogManager } = createSetupManager();
-        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("configure-manually");
-        const configureManually = vi.spyOn(manager, "onConfigureManually").mockResolvedValue(true);
-        const newVaultSettings = createNewVaultSettings();
-
-        await manager.onOnboard(UserMode.NewUser);
-
-        expect(newVaultSettings.customChunkSize).toBe(0);
-        expect(configureManually).toHaveBeenCalledWith(newVaultSettings, UserMode.NewUser);
     });
 
     it("compatibility: normalises imported flat remote settings from a Setup URI before applying", async () => {
@@ -825,13 +812,104 @@ describe("supported remote types", () => {
         expect(confirm).not.toHaveBeenCalled();
     });
 
-    it("accepts a Setup URI which contains an S3 connection", async () => {
-        const { manager, dialogManager } = createSetupManager();
+    it("joins straight away when a Setup URI is used on an unconfigured device", async () => {
+        const { manager, dialogManager, core, setting } = createSetupManager();
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce(createLegacyRemoteSetting());
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard");
+
+        await expect(manager.onUseSetupURI(UserMode.Unknown)).resolves.toBe(true);
+        expect(confirm).not.toHaveBeenCalled();
+        expect(core.rebuilder.scheduleFetch).toHaveBeenCalledOnce();
+        expect(setting.currentSettings()).toMatchObject({ remoteType: REMOTE_MINIO, isConfigured: true });
+    });
+
+    it("reviews a Setup URI used on a configured device", async () => {
+        const { manager, dialogManager, setting } = createSetupManager();
+        setting.settings = { ...setting.currentSettings(), isConfigured: true };
         dialogManager.openWithExplicitCancel.mockResolvedValueOnce(createLegacyRemoteSetting());
         const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
 
         await expect(manager.onUseSetupURI(UserMode.Unknown)).resolves.toBe(true);
         expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ remoteType: REMOTE_MINIO }), UserMode.Unknown);
+    });
+});
+
+describe("initial setup", () => {
+    const formValues = {
+        endpoint: "https://account.r2.cloudflarestorage.com",
+        accessKey: "access",
+        secretKey: "secret",
+        bucket: "notes",
+        bucketPrefix: "",
+        sizeWarning: 0,
+        encrypt: false,
+        passphrase: "",
+        usePathObfuscation: true,
+    };
+
+    function withBucket(status: "empty" | "configured", ok = true) {
+        const fixture = createSetupManager();
+        fixture.core.services.replicator.createRemoteResource.mockImplementation(async () => ({
+            check: vi.fn(async () => ({ ok })),
+            inspectPathIdentity: vi.fn(async () =>
+                status === "empty" ? { status } : { status, pathNormalizationVersion: 0 }
+            ),
+            dispose: vi.fn(async () => undefined),
+        }));
+        return fixture;
+    }
+
+    it("refuses to join an empty bucket", async () => {
+        const { manager } = withBucket("empty");
+        const result = await manager.prepareSetup(createNewVaultSettings(), formValues, "join");
+        expect(result).toMatchObject({ status: "error" });
+        expect(result.status === "error" && result.message).toContain("no Red Sync data");
+    });
+
+    it("asks for a second confirmation before replacing a bucket which already has data", async () => {
+        const { manager } = withBucket("configured");
+        const result = await manager.prepareSetup(createNewVaultSettings(), formValues, "new");
+        expect(result).toMatchObject({ status: "confirm", confirmLabel: "Replace and upload" });
+    });
+
+    it("adopts the bucket's path identity when joining", async () => {
+        const { manager } = withBucket("configured");
+        const result = await manager.prepareSetup(createNewVaultSettings(), formValues, "join");
+        expect(result).toMatchObject({ status: "ok", settings: { pathNormalizationVersion: 0, bucket: "notes" } });
+    });
+
+    it("reports an unreachable bucket without applying anything", async () => {
+        const { manager, core } = withBucket("empty", false);
+        const result = await manager.prepareSetup(createNewVaultSettings(), formValues, "new");
+        expect(result).toMatchObject({ status: "error" });
+        expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ["new", "scheduleRebuild"],
+        ["join", "scheduleFetch"],
+    ] as const)("starts a %s sync without further confirmation", async (mode, scheduler) => {
+        const { manager, core, setting } = createSetupManager();
+        const settings = {
+            ...createNewVaultSettings(),
+            endpoint: "https://account.r2.cloudflarestorage.com",
+            bucket: "notes",
+        };
+        await expect(manager.completeSetup(settings, mode)).resolves.toBe(true);
+        expect(core.rebuilder[scheduler]).toHaveBeenCalledOnce();
+        expect(core.confirm.confirmWithMessage).not.toHaveBeenCalled();
+        expect(setting.currentSettings()).toMatchObject({ isConfigured: true, bucket: "notes" });
+        await expect(setting.deviceValues.getValue("red-sync-pending-setup:vault")).resolves.toContain(`"${mode}"`);
+    });
+
+    it("returns to the start page from the form", async () => {
+        const { manager, dialogManager } = createSetupManager();
+        dialogManager.openWithExplicitCancel
+            .mockResolvedValueOnce("join")
+            .mockResolvedValueOnce("back")
+            .mockResolvedValueOnce("cancelled");
+        await expect(manager.startOnBoarding()).resolves.toBe(false);
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledTimes(3);
     });
 });
 

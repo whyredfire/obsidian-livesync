@@ -7,6 +7,12 @@ import { DEFAULT_SETTINGS } from "@vrtmrz/livesync-commonlib/settings";
 import { FlagFilesHumanReadable } from "@vrtmrz/livesync-commonlib/compat/common/models/redflag.const";
 import { readFetchFlagState, writeFetchFlagState } from "./redFlag.fetchStateMarkdown";
 
+vi.mock("./setupObsidian/pendingSetup", () => ({
+    readPendingSetup: vi.fn(async () => undefined),
+    clearPendingSetup: vi.fn(async () => undefined),
+    markPendingSetup: vi.fn(async () => undefined),
+}));
+
 const REMOTE_WINS = "Overwrite all with remote files";
 const KEEP_LOCAL = "Keep local files even if not on remote";
 

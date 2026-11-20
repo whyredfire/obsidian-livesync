@@ -52,7 +52,7 @@
 <Instruction>
     <Question>{translateMessage("Please select your situation.")}</Question>
     <Option
-        title={translateMessage("⚠️ Initialise or overwrite the remote")}
+        title={translateMessage("Initialise or overwrite the remote")}
         bind:value={userType}
         selectedValue={TYPE_NEW}
     >
@@ -63,7 +63,7 @@
         </InfoNote>
     </Option>
     <Option
-        title={translateMessage("🔗 Join this device")}
+        title={translateMessage("Join this device")}
         bind:value={userType}
         selectedValue={TYPE_EXISTING}
     >
@@ -74,7 +74,7 @@
         </InfoNote>
     </Option>
     <Option
-        title={translateMessage("⚙️ Apply settings only (advanced)")}
+        title={translateMessage("Apply settings only (advanced)")}
         bind:value={userType}
         selectedValue={TYPE_COMPATIBLE_EXISTING}
     >

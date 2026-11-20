@@ -14,6 +14,8 @@ const EVENT_REQUEST_COPY_SETUP_URI = "request-copy-setup-uri";
 const EVENT_REQUEST_SHOW_SETUP_QR = "request-show-setup-qr";
 
 export const EVENT_REQUEST_RELOAD_SETTING_TAB = "reload-setting-tab";
+/** The device-local 'stats for nerds' preference changed. */
+export const EVENT_STATS_FOR_NERDS_CHANGED = "stats-for-nerds-changed";
 
 const EVENT_REQUEST_OPEN_PLUGIN_SYNC_DIALOG = "request-open-plugin-sync-dialog";
 
@@ -29,6 +31,7 @@ const EVENT_REQUEST_PERFORM_GC_V3 = "request-perform-gc-v3";
 declare global {
     interface LSEvents {
         [EVENT_PLUGIN_LOADED]: undefined;
+        [EVENT_STATS_FOR_NERDS_CHANGED]: undefined;
         [EVENT_PLUGIN_UNLOADED]: undefined;
         [EVENT_VAULT_REFLECTION_FAILED]: undefined;
         [EVENT_REQUEST_OPEN_PLUGIN_SYNC_DIALOG]: undefined;

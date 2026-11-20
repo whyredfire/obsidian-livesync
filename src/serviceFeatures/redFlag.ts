@@ -1,3 +1,4 @@
+import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import { LOG_LEVEL_INFO, LOG_LEVEL_NOTICE, LOG_LEVEL_VERBOSE } from "octagonal-wheels/common/logger";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { createInstanceLogFunction, type LogFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/logUtils";
@@ -19,6 +20,8 @@ import { deleteFetchFlags } from "./redFlag.fetchState";
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
 import { activateRemoteConfiguration } from "@vrtmrz/livesync-commonlib/remote-configurations";
 import { $msg } from "@/common/translation";
+import { clearPendingSetup, readPendingSetup } from "./setupObsidian/pendingSetup";
+import { RED_SYNC_SYNC_TRIGGERS } from "@/common/core/settings/newVaultSettings";
 
 /**
  * Flag file handler interface, similar to target filter pattern.
@@ -211,7 +214,11 @@ export function createFetchAllFlagHandler(
         handle: async () => {
             try {
                 const res = await onScheduled();
-                if (res) return await verifyAndUnlockSuspension(host, log);
+                if (res) {
+                    const resumed = await verifyAndUnlockSuspension(host, log);
+                    if (resumed) await completePendingSetup(host, log);
+                    return resumed;
+                }
             } catch (ex) {
                 log(
                     "Could not prepare or finish the scheduled fetch. File and database reflection remain suspended.",
@@ -448,6 +455,26 @@ export async function processVaultInitialisation(
     }
 }
 
+/**
+ * Finish a setup started from the setup form: switch automatic synchronisation
+ * on and tell the user, once the upload or download has completed.
+ */
+export async function completePendingSetup(
+    host: NecessaryServices<"setting" | "vault", never>,
+    log: LogFunction
+): Promise<void> {
+    const mode = await readPendingSetup(host);
+    if (!mode) return;
+    await clearPendingSetup(host);
+    await host.services.setting.applyPartial(RED_SYNC_SYNC_TRIGGERS, true);
+    log(
+        mode === "new"
+            ? "Red Sync is ready: this vault has been uploaded and automatic sync is on."
+            : "Red Sync is ready: your notes have been downloaded and automatic sync is on.",
+        LOG_LEVEL_URGENT
+    );
+}
+
 export async function verifyAndUnlockSuspension(
     host: NecessaryServices<"setting" | "appLifecycle" | "UI", never>,
     log: LogFunction
@@ -474,7 +501,7 @@ export async function verifyAndUnlockSuspension(
  * All logic related to rebuild flag is encapsulated here.
  */
 export function createRebuildFlagHandler(
-    host: NecessaryServices<"setting" | "appLifecycle" | "UI" | "tweakValue", "storageAccess" | "rebuilder">,
+    host: NecessaryServices<"setting" | "appLifecycle" | "UI" | "tweakValue" | "vault", "storageAccess" | "rebuilder">,
     log: LogFunction
 ) {
     // Check if rebuild flag is active
@@ -491,8 +518,11 @@ export function createRebuildFlagHandler(
     // Handle the rebuild everything scheduled operation
     const onScheduled = async () => {
         const settings = host.services.setting.currentSettings();
-        const method =
-            await host.services.UI.dialogManager.openWithExplicitCancel<RebuildEverythingResult>(RebuildEverything);
+        // The setup form already confirmed this upload and keeps this device's settings.
+        const fromSetup = (await readPendingSetup(host)) === "new";
+        const method = fromSetup
+            ? ({ extra: { preventFetchingConfig: true } } as const)
+            : await host.services.UI.dialogManager.openWithExplicitCancel<RebuildEverythingResult>(RebuildEverything);
         if (method === "cancelled") {
             log("Rebuild everything cancelled by user.", LOG_LEVEL_NOTICE);
             return await cancelScheduledInitialisation(host, cleanupFlag);
@@ -516,7 +546,9 @@ export function createRebuildFlagHandler(
         handle: async () => {
             const res = await onScheduled();
             if (res) {
-                return await verifyAndUnlockSuspension(host, log);
+                const resumed = await verifyAndUnlockSuspension(host, log);
+                if (resumed) await completePendingSetup(host, log);
+                return resumed;
             }
             return false;
         },

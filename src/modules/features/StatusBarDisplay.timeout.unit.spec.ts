@@ -126,7 +126,7 @@ describe("status timeout composition", () => {
             STATUS_COUNTER_INACTIVE_LINGER_MS,
         ]);
         scheduler.entries[0].callback();
-        expect(display.value.replace(/\u2007/g, "")).toBe(" 🔁0");
+        expect(display.value.replace(/\u2007/g, "")).toBe(" retrying 0");
         expect(display.initialCount.value).toBeUndefined();
         expect(display.retryingCount.value).toBe(0);
         display.dispose();
@@ -135,7 +135,7 @@ describe("status timeout composition", () => {
         expect(scheduler.entries[1].cancel).toHaveBeenCalledTimes(1);
         for (const dispose of disposers) expect(dispose).toHaveBeenCalledTimes(1);
         scheduler.entries[1].callback();
-        expect(display.value.replace(/\u2007/g, "")).toBe(" 🔁0");
+        expect(display.value.replace(/\u2007/g, "")).toBe(" retrying 0");
         expect(display.initialCount.value).toBeUndefined();
         expect(display.retryingCount.value).toBe(0);
     });

@@ -31,14 +31,24 @@
 
     const { setResult, getInitialData }: Props = $props();
 
+    // Megabytes; 0 means no warning.
+    let sizeWarning = $state(0);
+
     onMount(() => {
         if (getInitialData) {
             const initialData = getInitialData();
             if (initialData) {
                 copyTo(initialData, syncSetting);
+                const threshold = (initialData as Partial<ObsidianLiveSyncSettings>).notifyThresholdOfRemoteStorageSize;
+                sizeWarning = threshold !== undefined && threshold > 0 ? threshold : 0;
             }
         }
     });
+    const sizeWarningValid = $derived(Number.isInteger(sizeWarning) && sizeWarning >= 0);
+
+    function withSizeWarning(setting: BucketSyncSetting) {
+        return { ...setting, notifyThresholdOfRemoteStorageSize: sizeWarningValid ? sizeWarning : 0 };
+    }
     let error = $state("");
     const context = getDialogContext();
     const isEndpointSecure = $derived.by(() => {
@@ -113,7 +123,7 @@
             error = (await checkConnection()) || "";
             if (!error) {
                 const setting = generateSetting();
-                setResult(pickBucketSyncSettings(setting));
+                setResult(withSizeWarning(pickBucketSyncSettings(setting)));
                 return;
             }
         } catch (e) {
@@ -122,8 +132,7 @@
         }
     }
     function commit() {
-        const setting = pickBucketSyncSettings(generateSetting());
-        setResult(setting);
+        setResult(withSizeWarning(pickBucketSyncSettings(generateSetting())));
     }
     function cancel() {
         setResult(TYPE_CANCELLED);
@@ -197,6 +206,13 @@
 </InputRow>
 <InfoNote>
     {translateMessage("Use a folder prefix to keep several vaults in one bucket. Leave it blank to use the bucket root.")}
+</InfoNote>
+
+<InputRow label={translateMessage("Size warning (MB)")}>
+    <input type="number" name="s3-size-warning" min="0" step="100" bind:value={sizeWarning} />
+</InputRow>
+<InfoNote>
+    {translateMessage("Warn when the data in the bucket grows beyond this size. Leave it at 0 for no warning.")}
 </InfoNote>
 
 <InfoNote error visible={error !== ""}>

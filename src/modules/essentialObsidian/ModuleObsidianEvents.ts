@@ -6,12 +6,7 @@ import type { TFile } from "@/deps.ts";
 import { fireAndForget } from "octagonal-wheels/promises";
 import { type FilePathWithPrefix } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { reactive, reactiveSource, type ReactiveSource } from "octagonal-wheels/dataobject/reactive";
-import {
-    collectingChunks,
-    pluginScanningCount,
-    hiddenFilesEventCount,
-    hiddenFilesProcessingCount,
-} from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/stores";
+import { collectingChunks } from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/stores";
 import type { LiveSyncCore } from "@/main.ts";
 import { compatGlobal } from "@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions";
 import { NO_INTERACTION } from "@vrtmrz/livesync-commonlib/replication";
@@ -301,8 +296,6 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
                 const replicationCount = this.services.replication.replicationResultCount.value;
                 const storageApplyingCount = this.services.replication.storageApplyingCount.value;
                 const chunkCount = collectingChunks.value;
-                const pluginScanCount = pluginScanningCount.value;
-                const hiddenFilesCount = hiddenFilesEventCount.value + hiddenFilesProcessingCount.value;
                 const conflictProcessCount = this.services.conflict.conflictProcessQueueCount.value;
                 // Now no longer `pendingFileEventCount` and `processingFileEventCount` is used
                 // const e = this.core.pendingFileEventCount.value;
@@ -311,17 +304,7 @@ export class ModuleObsidianEvents extends AbstractObsidianModule {
                 const proc = 0;
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Reading the tick establishes the reactive polling dependency.
                 const __ = __tick.value;
-                return (
-                    dbCount +
-                    replicationCount +
-                    storageApplyingCount +
-                    chunkCount +
-                    pluginScanCount +
-                    hiddenFilesCount +
-                    conflictProcessCount +
-                    e +
-                    proc
-                );
+                return dbCount + replicationCount + storageApplyingCount + chunkCount + conflictProcessCount + e + proc;
             });
             this.plugin.registerInterval(
                 compatGlobal.setInterval(() => {

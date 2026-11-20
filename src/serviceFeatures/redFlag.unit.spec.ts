@@ -20,7 +20,9 @@ import {
     processVaultInitialisation,
     verifyAndUnlockSuspension,
     flagHandlerToEventHandler,
+    completePendingSetup,
 } from "./redFlag";
+import { clearPendingSetup, readPendingSetup } from "./setupObsidian/pendingSetup";
 import {
     DEFAULT_SETTINGS,
     TweakValuesRecommendedTemplate,
@@ -46,6 +48,13 @@ import {
     askSimpleFetchMode,
 } from "./redFlag.simpleFetch";
 import { activateRemoteConfiguration } from "@vrtmrz/livesync-commonlib/remote-configurations";
+
+vi.mock("./setupObsidian/pendingSetup", () => ({
+    readPendingSetup: vi.fn(async () => undefined),
+    clearPendingSetup: vi.fn(async () => undefined),
+    markPendingSetup: vi.fn(async () => undefined),
+}));
+
 //Mock synchroniseAllFilesBetweenDBandStorage
 vi.mock("@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner", async (importOriginal) => {
     const originalModule = (await importOriginal()) as any;
@@ -2265,5 +2274,55 @@ describe("Fetch confirmation lifecycle", () => {
             suspendFileWatching: true,
             suspendParseReplicationResult: true,
         });
+    });
+});
+
+describe("setup started from the setup form", () => {
+    it("uploads without asking and turns automatic sync on afterwards", async () => {
+        vi.mocked(readPendingSetup).mockResolvedValue("new");
+        try {
+            const host = createHostMock();
+            host.mocks.storageAccess.files.add(FlagFilesOriginal.REBUILD_ALL);
+            const log = createLoggerMock();
+
+            const result = await createRebuildFlagHandler(host as any, log).handle();
+
+            expect(result).toBe(true);
+            expect(host.mocks.ui.dialogManager.openWithExplicitCancel).not.toHaveBeenCalled();
+            expect(host.mocks.rebuilder.$rebuildEverything).toHaveBeenCalledOnce();
+            expect(host.mocks.setting.currentSettings()).toMatchObject({
+                syncOnStart: true,
+                syncOnFileOpen: true,
+                syncOnSave: true,
+            });
+            expect(clearPendingSetup).toHaveBeenCalled();
+        } finally {
+            vi.mocked(readPendingSetup).mockResolvedValue(undefined);
+        }
+    });
+
+    it("merges with the bucket without asking when joining", async () => {
+        vi.mocked(readPendingSetup).mockResolvedValue("join");
+        try {
+            const host = createHostMock(true);
+            const cleanupFlag = vi.fn(async () => undefined);
+            host.mocks.tweakValue.fetchRemotePreferred.mockResolvedValue(availableRemoteTweaks({}));
+
+            await expect(
+                askAndPerformFastSetupOnScheduledFetchAll(host as any, createLoggerMock(), cleanupFlag)
+            ).resolves.toBe(true);
+
+            expect(host.mocks.ui.confirm.confirmWithMessage).not.toHaveBeenCalled();
+            expect(cleanupFlag).toHaveBeenCalledOnce();
+        } finally {
+            vi.mocked(readPendingSetup).mockResolvedValue(undefined);
+        }
+    });
+
+    it("does nothing after an ordinary Fetch or Rebuild", async () => {
+        vi.mocked(clearPendingSetup).mockClear();
+        const host = createHostMock();
+        await completePendingSetup(host as any, createLoggerMock());
+        expect(clearPendingSetup).not.toHaveBeenCalled();
     });
 });

@@ -14,6 +14,7 @@ import { adjustSettingToRemoteIfNeeded, cancelScheduledInitialisation, processVa
 import { $msg } from "@/common/translation";
 import type { AllMessageKeys } from "@/common/translation";
 import { readFetchSelection, saveFetchSelection, clearFetchSelection, describeFetchRemote } from "./redFlag.fetchState";
+import { readPendingSetup } from "./setupObsidian/pendingSetup";
 
 export const SIMPLE_FETCH_STAGE1_REMOTE_WINS = "Overwrite all with remote files";
 export const SIMPLE_FETCH_STAGE1_NEWER_WINS = "Compare time and take newer";
@@ -255,7 +256,11 @@ export async function askAndPerformFastSetupOnScheduledFetchAll(
         );
         return undefined;
     }
-    const result = await askSimpleFetchMode(host);
+    // Joining from the setup form merges: the newer copy of each note wins and local-only notes are kept.
+    const fromSetup = (await readPendingSetup(host)) === "join";
+    const result = fromSetup
+        ? buildSimpleFetchResult(SIMPLE_FETCH_STAGE1_NEWER_WINS, SIMPLE_FETCH_STAGE2_NEWER_SYNC_ALL)!
+        : await askSimpleFetchMode(host);
     if (result === "cancelled") {
         log("Fetch cancelled by user.", LOG_LEVEL_NOTICE);
         return await cancelScheduledInitialisation(host, cleanupFlag);

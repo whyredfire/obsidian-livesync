@@ -97,4 +97,34 @@ describe("ObsidianSettingService", () => {
         expect(saveData).toHaveBeenCalled();
         expect(saveData.mock.calls[saveData.mock.calls.length - 1]?.[0]).toMatchObject({ remoteType: REMOTE_MINIO });
     });
+
+    it("treats an unconfigured bucket size warning as unlimited", async () => {
+        const service = createSettingService("vault", new MemoryValueStore());
+        const adjusted = await service.adjustSettings({
+            ...DEFAULT_SETTINGS,
+            notifyThresholdOfRemoteStorageSize: -1,
+        } as ObsidianLiveSyncSettings);
+        expect(adjusted.notifyThresholdOfRemoteStorageSize).toBe(0);
+    });
+
+    it("keeps a configured bucket size warning when the engine resets it", async () => {
+        const service = createSettingService("vault", new MemoryValueStore());
+        await service.loadSettings();
+        await service.applyPartial({ notifyThresholdOfRemoteStorageSize: 2000 });
+        await service.applyPartial({ notifyThresholdOfRemoteStorageSize: -1 });
+        expect(service.currentSettings().notifyThresholdOfRemoteStorageSize).toBe(2000);
+        await service.applyPartial({ notifyThresholdOfRemoteStorageSize: 0 });
+        expect(service.currentSettings().notifyThresholdOfRemoteStorageSize).toBe(0);
+    });
+
+    it("stores the stats-for-nerds preference on this device", async () => {
+        const values = new MemoryValueStore();
+        const service = createSettingService("vault", values);
+        await service.loadSettings();
+        expect(service.statsForNerds).toBe(false);
+        await service.setStatsForNerds(true);
+        const reloaded = createSettingService("vault", values);
+        await reloaded.loadSettings();
+        expect(reloaded.statsForNerds).toBe(true);
+    });
 });

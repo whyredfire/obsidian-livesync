@@ -1,18 +1,11 @@
 <script lang="ts">
     import { configURIBase } from "@/common/types";
     import DialogHeader from "@/modules/services/LiveSyncUI/components/DialogHeader.svelte";
-    import Guidance from "@/modules/services/LiveSyncUI/components/Guidance.svelte";
-    import Decision from "@/modules/services/LiveSyncUI/components/Decision.svelte";
-    import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
-    import InfoNote from "@/modules/services/LiveSyncUI/components/InfoNote.svelte";
-    import InputRow from "@/modules/services/LiveSyncUI/components/InputRow.svelte";
     import Password from "@/modules/services/LiveSyncUI/components/Password.svelte";
-
     import { onMount } from "svelte";
     import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
     import type { GuestDialogProps } from "@/modules/services/LiveSyncUI/svelteDialog";
     import { TYPE_CANCELLED, type UseSetupURIResultType } from "./setupDialogTypes";
-    import { $msg as translateMessage } from "@/common/translation";
 
     type Props = GuestDialogProps<UseSetupURIResultType, string>;
     const { setResult, getInitialData }: Props = $props();
@@ -20,77 +13,66 @@
     let setupURI = $state("");
     let passphrase = $state("");
     let error = $state("");
+    let busy = $state(false);
     onMount(() => {
-        if (getInitialData) {
-            const initialURI = getInitialData();
-            if (initialURI) {
-                setupURI = initialURI;
-            }
-        }
+        const initialURI = getInitialData?.();
+        if (initialURI) setupURI = initialURI;
     });
 
-    const seemsValid = $derived(setupURI.startsWith(configURIBase));
-    async function processSetupURI() {
+    const looksValid = $derived(setupURI.trim().startsWith(configURIBase));
+
+    async function submit(event: SubmitEvent) {
+        event.preventDefault();
         error = "";
-        if (!seemsValid) return;
+        if (!looksValid) {
+            error = "This does not look like a Red Sync setup URI. Copy it again from the other device.";
+            return;
+        }
         if (!passphrase) {
-            error = translateMessage("Passphrase is required.");
+            error = "Enter the passphrase that was chosen when the setup URI was copied.";
             return;
         }
+        busy = true;
         try {
-            const newConf = await decodeSettingsFromSetupURI(setupURI.trim(), passphrase);
-            if (!newConf) throw new Error("Invalid Setup URI settings");
-            setResult(newConf);
-            // Logger("Settings imported successfully", LOG_LEVEL_NOTICE);
-            return;
-        } catch (e) {
-            error = translateMessage("Failed to parse Setup-URI.");
-            return;
+            const settings = await decodeSettingsFromSetupURI(setupURI.trim(), passphrase);
+            if (!settings) throw new Error("Invalid setup URI");
+            setResult(settings);
+        } catch {
+            error = "The setup URI could not be opened. Check the passphrase and try again.";
+        } finally {
+            busy = false;
         }
-    }
-    async function canProceed() {
-        return (await processSetupURI()) ?? false;
     }
 </script>
 
-<DialogHeader title={translateMessage("Enter Setup URI")} />
-<Guidance
-    >{translateMessage(
-        "Please enter the Setup URI that was generated during server installation or on another device, along with the vault passphrase."
-    )}<br />
-    {translateMessage(
-        'Note that you can generate a new Setup URI by running the "Copy settings as a new Setup URI" command in the command palette.'
-    )}</Guidance
->
-
-<InputRow label={translateMessage("Setup-URI")}>
-    <input
-        type="text"
-        placeholder="obsidian://setuplivesync?settings=...."
-        bind:value={setupURI}
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-        required
-    />
-</InputRow>
-<InfoNote visible={seemsValid}>{translateMessage("The Setup-URI is valid and ready to use.")}</InfoNote>
-<InfoNote warning visible={!seemsValid && setupURI.trim() != ""}>
-    {translateMessage("The Setup-URI does not appear to be valid. Please check that you have copied it correctly.")}
-</InfoNote>
-<InputRow label={translateMessage("Passphrase")}>
-    <Password placeholder={translateMessage("Enter your passphrase")} bind:value={passphrase} required />
-</InputRow>
-<InfoNote error visible={error.trim() != ""}>
-    {error}
-</InfoNote>
-
-<UserDecisions>
-    <Decision
-        title={translateMessage("Test Settings and Continue")}
-        important={true}
-        disabled={!canProceed}
-        commit={() => processSetupURI()}
-    />
-    <Decision title={translateMessage("Cancel")} commit={() => setResult(TYPE_CANCELLED)} />
-</UserDecisions>
+<DialogHeader title="Use a setup URI" />
+<form class="rs-setup" onsubmit={submit} oninput={() => (error = "")} autocomplete="off">
+    <p class="rs-setup-lead">
+        On a device that is already syncing, open Red Sync's settings and choose Copy setup URI. Paste it here with the
+        passphrase you chose for it. On a phone, you can also scan the other device's QR code with the camera.
+    </p>
+    <section class="rs-section">
+        <div class="rs-field">
+            <label class="rs-field-label" for="rs-setup-uri">Setup URI</label>
+            <input
+                id="rs-setup-uri"
+                type="text"
+                placeholder="obsidian://setuplivesync?settings=…"
+                spellcheck="false"
+                autocapitalize="off"
+                bind:value={setupURI}
+            />
+        </div>
+        <div class="rs-field">
+            <span class="rs-field-label">Passphrase</span>
+            <div class="rs-password"><Password name="rs-uri-passphrase" placeholder="" bind:value={passphrase} /></div>
+        </div>
+    </section>
+    {#if error}
+        <p class="rs-message rs-message-error" role="alert">{error}</p>
+    {/if}
+    <div class="rs-actions">
+        <button type="button" onclick={() => setResult(TYPE_CANCELLED)} disabled={busy}>Cancel</button>
+        <button type="submit" class="mod-cta" disabled={busy}>{busy ? "Opening…" : "Continue"}</button>
+    </div>
+</form>
